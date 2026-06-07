@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Save, Settings, Trash2, CalendarPlus, Check, X, ArrowLeft, ShieldAlert, ImagePlus, Edit2, UserCog } from "lucide-react";
+import { Save, Settings, Trash2, CalendarPlus, Check, X, ArrowLeft, ShieldAlert, ImagePlus, Edit2, UserCog, Info } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { generateSchedule, isSeasonComplete } from "../lib/logic";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
@@ -8,6 +8,7 @@ import { Input } from "../components/ui/input";
 import { TeamColorBadge } from "../components/shared/TeamColorBadge";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
+import AdminMatchInfoModal from "../components/admin/AdminMatchInfoModal";
 
 export default function AdminTournament() {
   const { tournamentId } = useParams();
@@ -33,6 +34,7 @@ export default function AdminTournament() {
   const [editScores, setEditScores] = useState({ home: "", away: "", match_date: "" });
   const [finalScores, setFinalScores] = useState({ home: "", away: "" });
   const [manualWinnerOverride, setManualWinnerOverride] = useState("");
+  const [infoMatch, setInfoMatch] = useState(null);
 
   const [confirmFullReset, setConfirmFullReset] = useState(false);
 
@@ -90,6 +92,8 @@ export default function AdminTournament() {
     if (teamsRes.data) setTeams(teamsRes.data);
     if (matchesRes.data) setMatches(matchesRes.data);
   };
+
+  const getTeam = (id) => teams.find(t => t.id === id);
 
   const saveTournamentName = async () => {
     await supabase.from("tournaments").update({ name: tName }).eq("id", tournamentId);
@@ -263,14 +267,10 @@ export default function AdminTournament() {
   };
 
   const handleFullReset = async () => {
-    if (confirmFullReset) {
-      await supabase.from("matches").delete().eq("tournament_id", tournamentId);
-      await supabase.from("teams").delete().eq("tournament_id", tournamentId);
-      await supabase.from("tournaments").update({ champion_team_id: null, image_url: null }).eq("id", tournamentId);
-      setConfirmFullReset(false);
-    } else {
-      setConfirmFullReset(true);
-    }
+    await supabase.from("matches").delete().eq("tournament_id", tournamentId);
+    await supabase.from("teams").delete().eq("tournament_id", tournamentId);
+    await supabase.from("tournaments").update({ champion_team_id: null, image_url: null }).eq("id", tournamentId);
+    setConfirmFullReset(false);
   };
 
   if (loading) return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
@@ -294,7 +294,6 @@ export default function AdminTournament() {
   const formatDateForInput = (isoString) => {
     if (!isoString) return "";
     const date = new Date(isoString);
-    // Format to YYYY-MM-DDThh:mm for datetime-local input
     return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0,16);
   };
 
@@ -602,20 +601,20 @@ export default function AdminTournament() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {regularMatches.sort((a,b) => a.matchday - b.matchday).map(m => {
-                const home = teams.find(t => t.id === m.home_team_id);
-                const away = teams.find(t => t.id === m.away_team_id);
-                const isEditing = editingMatch === m.id;
+              {regularMatches.sort((a,b) => a.matchday - b.matchday).map(match => {
+                const home = getTeam(match.home_team_id);
+                const away = getTeam(match.away_team_id);
+                const isEditing = editingMatch?.id === match.id;
 
                 return (
-                  <div key={m.id} className={`flex flex-col sm:flex-row items-center justify-between p-3 rounded-xl border gap-4 transition-colors ${isEditing ? "bg-white/5 border-primary/30" : "bg-white/[0.02] border-white/5"}`}>
+                  <div key={match.id} className={`flex flex-col sm:flex-row items-center justify-between p-3 rounded-xl border gap-4 transition-colors ${isEditing ? "bg-white/5 border-primary/30" : "bg-white/[0.02] border-white/5"}`}>
                     <div className="flex flex-col items-center sm:items-start w-full sm:w-auto">
                       <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                        MD {m.matchday}
+                        MD {match.matchday}
                       </div>
-                      {!isEditing && m.match_date && (
+                      {!isEditing && match.match_date && (
                         <div className="text-xs text-primary/80 font-medium">
-                          {new Date(m.match_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {new Date(match.match_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </div>
                       )}
                     </div>
@@ -640,8 +639,8 @@ export default function AdminTournament() {
                               className="w-14 h-8 text-center px-1 font-bold" 
                               value={editScores.home} 
                               onChange={e => setEditScores({...editScores, home: e.target.value})}
-                              onKeyDown={e => e.key === 'Enter' && saveMatchScore(m.id, m.status)}
-                              placeholder={m.home_score ?? "-"}
+                              onKeyDown={e => e.key === 'Enter' && saveMatchScore(match.id, match.status)}
+                              placeholder={match.home_score ?? "-"}
                             />
                             <span className="text-muted-foreground font-bold">-</span>
                             <Input 
@@ -649,14 +648,14 @@ export default function AdminTournament() {
                               className="w-14 h-8 text-center px-1 font-bold" 
                               value={editScores.away} 
                               onChange={e => setEditScores({...editScores, away: e.target.value})}
-                              onKeyDown={e => e.key === 'Enter' && saveMatchScore(m.id, m.status)}
-                              placeholder={m.away_score ?? "-"}
+                              onKeyDown={e => e.key === 'Enter' && saveMatchScore(match.id, match.status)}
+                              placeholder={match.away_score ?? "-"}
                             />
                           </div>
                         </div>
                       ) : (
-                        <div className={`px-4 py-1.5 rounded-lg border font-black text-lg ${m.status === "completed" ? "bg-white/5 border-white/10" : "bg-transparent border-white/5 text-muted-foreground"}`}>
-                          {m.status === "completed" ? `${m.home_score} - ${m.away_score}` : "vs"}
+                        <div className={`px-4 py-1.5 rounded-lg border font-black text-lg ${match.status === "completed" ? "bg-white/5 border-white/10" : "bg-transparent border-white/5 text-muted-foreground"}`}>
+                          {match.status === "completed" ? `${match.home_score} - ${match.away_score}` : "vs"}
                         </div>
                       )}
 
@@ -669,7 +668,7 @@ export default function AdminTournament() {
                     <div className="flex gap-2 self-end sm:self-auto w-full sm:w-auto justify-end mt-2 sm:mt-0">
                       {isEditing ? (
                         <>
-                          <Button size="sm" onClick={() => saveMatchScore(m.id, m.status)} className="bg-emerald-500 hover:bg-emerald-600 text-white h-8">
+                          <Button size="sm" onClick={() => saveMatchScore(match.id, match.status)} className="bg-emerald-500 hover:bg-emerald-600 text-white h-8">
                             Save
                           </Button>
                           <Button size="icon" variant="ghost" onClick={() => setEditingMatch(null)} className="text-muted-foreground hover:text-foreground h-8 w-8">
@@ -677,21 +676,31 @@ export default function AdminTournament() {
                           </Button>
                         </>
                       ) : (
-                        <Button 
-                          size="sm" 
-                          variant="secondary" 
-                          className="h-8 text-xs"
-                          onClick={() => {
-                            setEditingMatch(m.id);
-                            setEditScores({ 
-                              home: m.home_score ?? "", 
-                              away: m.away_score ?? "",
-                              match_date: formatDateForInput(m.match_date)
-                            });
-                          }}
-                        >
-                          <Edit2 className="w-3 h-3 mr-2" /> Edit Match
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="border-white/10 text-blue-400 hover:text-blue-300 hover:bg-blue-400/10"
+                            onClick={() => setInfoMatch({ matchId: match.id, homeTeam: home, awayTeam: away })}
+                          >
+                            <Info className="w-4 h-4 mr-1" /> Info
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="secondary" 
+                            className="h-8 text-xs"
+                            onClick={() => {
+                              setEditingMatch(match);
+                              setEditScores({ 
+                                home: match.home_score ?? "", 
+                                away: match.away_score ?? "",
+                                match_date: formatDateForInput(match.match_date)
+                              });
+                            }}
+                          >
+                            <Edit2 className="w-3 h-3 mr-2" /> Edit Match
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -721,23 +730,45 @@ export default function AdminTournament() {
             <CardDescription className="text-destructive/80">Completely wipe the tournament database.</CardDescription>
           </CardHeader>
           <CardContent>
-            {confirmFullReset ? (
-              <div className="space-y-3">
-                <p className="text-sm font-bold text-destructive">Are you absolutely sure?</p>
-                <div className="flex gap-2">
-                  <Button variant="destructive" className="flex-1" onClick={handleFullReset}>Yes, Wipe Everything</Button>
-                  <Button variant="outline" className="flex-1 border-white/20" onClick={() => setConfirmFullReset(false)}>Cancel</Button>
-                </div>
-              </div>
-            ) : (
-              <Button variant="outline" className="border-destructive text-destructive hover:bg-destructive hover:text-white" onClick={handleFullReset}>
-                Full Database Reset
-              </Button>
-            )}
+            <Button variant="outline" className="border-destructive text-destructive hover:bg-destructive hover:text-white" onClick={() => setConfirmFullReset(true)}>
+              Full Database Reset
+            </Button>
           </CardContent>
         </Card>
       </div>
 
+      {confirmFullReset && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0f1423] border border-red-500/20 rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <div className="flex flex-col items-center text-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">
+                <Trash2 className="w-8 h-8 text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">Full Database Reset</h3>
+                <p className="text-slate-400 mt-2">
+                  Are you absolutely sure? This will delete ALL teams, matches, scores, and statistics. 
+                  This action cannot be undone.
+                </p>
+              </div>
+              <div className="flex gap-3 w-full mt-4">
+                <Button variant="ghost" className="flex-1" onClick={() => setConfirmFullReset(false)}>Cancel</Button>
+                <Button variant="destructive" className="flex-1" onClick={handleFullReset}>Yes, wipe everything</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {infoMatch && (
+        <AdminMatchInfoModal 
+          isOpen={!!infoMatch}
+          onClose={() => setInfoMatch(null)}
+          matchId={infoMatch.matchId}
+          homeTeam={infoMatch.homeTeam}
+          awayTeam={infoMatch.awayTeam}
+        />
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ export default function Stats() {
   const { tournamentId } = useParams();
   const [teams, setTeams] = useState([]);
   const [matches, setMatches] = useState([]);
+  const [matchInfo, setMatchInfo] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
@@ -18,8 +19,16 @@ export default function Stats() {
       supabase.from("teams").select("*").eq("tournament_id", tournamentId),
       supabase.from("matches").select("*").eq("tournament_id", tournamentId)
     ]);
+    
     if (t.data) setTeams(t.data);
-    if (m.data) setMatches(m.data);
+    if (m.data) {
+      setMatches(m.data);
+      const matchIds = m.data.map(match => match.id);
+      if (matchIds.length > 0) {
+        const { data: infoData } = await supabase.from("match_info").select("*").in("match_id", matchIds);
+        setMatchInfo(infoData || []);
+      }
+    }
     setLoading(false);
   };
 
@@ -30,6 +39,7 @@ export default function Stats() {
     const channel = supabase.channel(`public_${tournamentId}_stats`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'teams', filter: `tournament_id=eq.${tournamentId}` }, loadData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches', filter: `tournament_id=eq.${tournamentId}` }, loadData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'match_info' }, loadData)
       .subscribe();
 
     return () => {
@@ -83,6 +93,52 @@ export default function Stats() {
     'D': 'bg-[#f59e0b] text-white',
     'L': 'bg-[#ef4444] text-white'
   };
+
+  // -------------------------------------------------------------
+  // Player Stats Aggregation (Scorers, Assists, Cards)
+  // -------------------------------------------------------------
+  const playerStats = {}; // key: "Player Name|Team Name"
+  
+  matchInfo.forEach(info => {
+    const processEvent = (events, type) => {
+      if (!events) return;
+      events.forEach(e => {
+        if (!e.player_name || !e.team_name) return;
+        const key = `${e.player_name}|${e.team_name}`;
+        if (!playerStats[key]) {
+          playerStats[key] = { 
+            player_name: e.player_name, 
+            team_name: e.team_name, 
+            matchesSet: new Set(), 
+            goals: 0, 
+            assists: 0, 
+            yellow_cards: 0, 
+            red_cards: 0 
+          };
+        }
+        playerStats[key].matchesSet.add(info.match_id);
+        
+        if (type === 'goal') playerStats[key].goals += 1;
+        if (type === 'assist') playerStats[key].assists += 1;
+        if (type === 'yellow') playerStats[key].yellow_cards += 1;
+        if (type === 'red') playerStats[key].red_cards += 1;
+      });
+    };
+    
+    processEvent(info.goals, 'goal');
+    processEvent(info.assists, 'assist');
+    processEvent(info.yellow_cards, 'yellow');
+    processEvent(info.red_cards, 'red');
+  });
+
+  const playersArr = Object.values(playerStats).map(p => ({
+    ...p,
+    matchesPlayed: p.matchesSet.size
+  }));
+
+  const topScorers = [...playersArr].filter(p => p.goals > 0).sort((a, b) => b.goals - a.goals || b.assists - a.assists);
+  const topAssists = [...playersArr].filter(p => p.assists > 0).sort((a, b) => b.assists - a.assists || b.goals - a.goals);
+  const topCards = [...playersArr].filter(p => p.yellow_cards > 0 || p.red_cards > 0).sort((a, b) => b.red_cards - a.red_cards || b.yellow_cards - a.yellow_cards);
 
   return (
     <div className="space-y-8 animate-in fade-in pb-20">
@@ -317,6 +373,109 @@ export default function Stats() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Player Stats Tables */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
+        {/* Top Scorers */}
+        <Card className="bg-[#0f1423] border-white/5 shadow-2xl">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <span className="w-1.5 h-6 bg-emerald-500 rounded-full inline-block"></span>
+              ⚽ Top Scorers
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {topScorers.length === 0 ? (
+              <p className="text-sm text-slate-500 text-center py-4">No stats available yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {topScorers.slice(0, 10).map((p, idx) => (
+                  <div key={idx} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="w-5 text-center text-slate-500 font-bold text-sm">{idx + 1}</span>
+                      <div>
+                        <div className="font-bold text-white text-sm">{p.player_name}</div>
+                        <div className="text-xs text-slate-500">{p.team_name} • {p.matchesPlayed} MP</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {p.assists > 0 && <span className="text-xs font-bold text-blue-400">{p.assists}A</span>}
+                      <span className="font-black text-emerald-400 text-lg">{p.goals}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Top Assists */}
+        <Card className="bg-[#0f1423] border-white/5 shadow-2xl">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <span className="w-1.5 h-6 bg-blue-500 rounded-full inline-block"></span>
+              👟 Top Assists
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {topAssists.length === 0 ? (
+              <p className="text-sm text-slate-500 text-center py-4">No stats available yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {topAssists.slice(0, 10).map((p, idx) => (
+                  <div key={idx} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="w-5 text-center text-slate-500 font-bold text-sm">{idx + 1}</span>
+                      <div>
+                        <div className="font-bold text-white text-sm">{p.player_name}</div>
+                        <div className="text-xs text-slate-500">{p.team_name} • {p.matchesPlayed} MP</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {p.goals > 0 && <span className="text-xs font-bold text-emerald-400">{p.goals}G</span>}
+                      <span className="font-black text-blue-400 text-lg">{p.assists}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Discipline (Cards) */}
+        <Card className="bg-[#0f1423] border-white/5 shadow-2xl">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <span className="w-1.5 h-6 bg-red-500 rounded-full inline-block"></span>
+              🟨🟥 Discipline
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {topCards.length === 0 ? (
+              <p className="text-sm text-slate-500 text-center py-4">No stats available yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {topCards.slice(0, 10).map((p, idx) => (
+                  <div key={idx} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="w-5 text-center text-slate-500 font-bold text-sm">{idx + 1}</span>
+                      <div>
+                        <div className="font-bold text-white text-sm">{p.player_name}</div>
+                        <div className="text-xs text-slate-500">{p.team_name} • {p.matchesPlayed} MP</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {p.yellow_cards > 0 && <span className="font-black text-yellow-500 text-lg">{p.yellow_cards}</span>}
+                      {p.red_cards > 0 && <span className="font-black text-red-500 text-lg ml-2">{p.red_cards}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
     </div>
   );
 }

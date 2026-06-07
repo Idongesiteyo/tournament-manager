@@ -8,6 +8,7 @@ import { TeamColorBadge } from "../components/shared/TeamColorBadge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { cn } from "../lib/utils";
+import PublicMatchDetailModal from "../components/ui/PublicMatchDetailModal";
 
 export default function Home() {
   const { tournamentId } = useParams();
@@ -16,6 +17,7 @@ export default function Home() {
   const [settings, setSettings] = useState(null);
   const [fixturesFilter, setFixturesFilter] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [selectedMatch, setSelectedMatch] = useState(null);
 
   const loadData = async () => {
     const [t, m, s] = await Promise.all([
@@ -228,7 +230,14 @@ export default function Home() {
                     if (!homeTeam || !awayTeam) return null;
 
                     return (
-                      <div key={m.id} className="flex flex-col p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors relative overflow-hidden">
+                      <div 
+                        key={m.id} 
+                        className={cn(
+                          "flex flex-col p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors relative overflow-hidden",
+                          m.status === "completed" && "cursor-pointer"
+                        )}
+                        onClick={() => m.status === "completed" && setSelectedMatch({ match: m, homeTeam, awayTeam })}
+                      >
                         {/* Match Date Header */}
                         {m.match_date && (
                           <div className="text-[10px] text-center font-bold text-slate-400 uppercase tracking-widest mb-3 pb-2 border-b border-white/5">
@@ -282,6 +291,17 @@ export default function Home() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Match Detail Modal */}
+      {selectedMatch && (
+        <PublicMatchDetailModal
+          isOpen={!!selectedMatch}
+          onClose={() => setSelectedMatch(null)}
+          match={selectedMatch.match}
+          homeTeam={selectedMatch.homeTeam}
+          awayTeam={selectedMatch.awayTeam}
+        />
+      )}
     </div>
   );
 }
