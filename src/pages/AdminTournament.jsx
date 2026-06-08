@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Save, Settings, Trash2, CalendarPlus, Check, X, ArrowLeft, ShieldAlert, ImagePlus, Edit2, UserCog, Info } from "lucide-react";
+import { Save, Settings, Trash2, CalendarPlus, Check, X, ArrowLeft, ShieldAlert, ImagePlus, Edit2, UserCog, Info, RotateCcw } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { generateSchedule, isSeasonComplete } from "../lib/logic";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
@@ -38,6 +38,8 @@ export default function AdminTournament() {
   const [infoMatch, setInfoMatch] = useState(null);
 
   const [confirmFullReset, setConfirmFullReset] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [halfDurations, setHalfDurations] = useState({});
 
   useEffect(() => {
     const checkAuthAndLoad = async () => {
@@ -48,7 +50,8 @@ export default function AdminTournament() {
       }
       
       const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).single();
-      const isSuperAdmin = profile?.role === 'super_admin';
+      const userIsSuperAdmin = profile?.role === 'super_admin';
+      setIsSuperAdmin(userIsSuperAdmin);
       
       const { data: tData, error: tErr } = await supabase
         .from("tournaments")
@@ -62,7 +65,7 @@ export default function AdminTournament() {
         return;
       }
 
-      let isAuthorized = isSuperAdmin || tData.user_id === session.user.id;
+      let isAuthorized = userIsSuperAdmin || tData.user_id === session.user.id;
 
       if (!isAuthorized) {
         const { data: assignment } = await supabase
@@ -226,7 +229,9 @@ export default function AdminTournament() {
     if (editScores.home !== "" && editScores.away !== "") {
       updates.home_score = parseInt(editScores.home, 10);
       updates.away_score = parseInt(editScores.away, 10);
-      updates.status = "completed";
+      if (originalStatus === "scheduled") {
+        updates.status = "completed";
+      }
     }
 
     const { error } = await supabase.from("matches").update(updates).eq("id", matchId);
@@ -239,6 +244,36 @@ export default function AdminTournament() {
     
     setEditingMatch(null);
     toast.success("Match saved successfully!");
+  };
+
+  const updateMatchStatus = async (matchId, status, extraFields = {}) => {
+    const { error } = await supabase.from("matches").update({ status, ...extraFields }).eq("id", matchId);
+    if (error) {
+      toast.error("Failed to update status: " + error.message);
+    } else {
+      toast.success("Match status updated to " + status);
+    }
+  };
+
+  const resetSingleMatch = async (matchId) => {
+    if (!window.confirm("Are you sure you want to reset this match? All scores, timers, and match info will be cleared.")) return;
+    
+    const { error: matchError } = await supabase.from("matches").update({
+      status: "scheduled",
+      home_score: null,
+      away_score: null,
+      first_half_start: null,
+      second_half_start: null,
+      match_end: null
+    }).eq("id", matchId);
+    
+    if (matchError) {
+      toast.error("Failed to reset match: " + matchError.message);
+      return;
+    }
+
+    await supabase.from("match_info").delete().eq("match_id", matchId);
+    toast.success("Match reset successfully!");
   };
 
   const generateFinal = async () => {
@@ -666,8 +701,8 @@ export default function AdminTournament() {
                           </div>
                         </div>
                       ) : (
-                        <div className={`px-4 py-1.5 rounded-lg border font-black text-lg ${match.status === "completed" ? "bg-white/5 border-white/10" : "bg-transparent border-white/5 text-muted-foreground"}`}>
-                          {match.status === "completed" ? `${match.home_score} - ${match.away_score}` : "vs"}
+                        <div className={`px-4 py-1.5 rounded-lg border font-black text-lg ${['completed', 'first_half', 'second_half', 'halftime'].includes(match.status) ? "bg-white/5 border-white/10" : "bg-transparent border-white/5 text-muted-foreground"}`}>
+                          {['completed', 'first_half', 'second_half', 'halftime'].includes(match.status) ? `${match.home_score ?? 0} - ${match.away_score ?? 0}` : "vs"}
                         </div>
                       )}
 
@@ -677,7 +712,7 @@ export default function AdminTournament() {
                       </div>
                     </div>
 
-                    <div className="flex gap-2 self-end sm:self-auto w-full sm:w-auto justify-end mt-2 sm:mt-0">
+                    <div className="flex gap-2 self-end sm:self-auto w-full sm:w-auto justify-end mt-2 sm:mt-0 flex-wrap">
                       {isEditing ? (
                         <>
                           <Button size="sm" onClick={() => saveMatchScore(match.id, match.status)} className="bg-emerald-500 hover:bg-emerald-600 text-white h-8">
@@ -688,7 +723,42 @@ export default function AdminTournament() {
                           </Button>
                         </>
                       ) : (
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                          <div className="flex items-center gap-1 mr-2 border-r border-white/10 pr-3">
+                            {match.status === 'scheduled' && (
+                              <div className="flex items-center gap-1">
+                                <select 
+                                  className="h-8 bg-black/40 border border-white/10 rounded px-1 text-xs text-white"
+                                  value={halfDurations[match.id] || 45}
+                                  onChange={(e) => setHalfDurations({...halfDurations, [match.id]: parseInt(e.target.value)})}
+                                >
+                                  {[10, 15, 20, 25, 30, 35, 40, 45].map(m => (
+                                    <option key={m} value={m}>{m}m half</option>
+                                  ))}
+                                </select>
+                                <Button size="sm" variant="outline" className="h-8 text-xs border-emerald-500/50 text-emerald-400 px-2" onClick={() => updateMatchStatus(match.id, 'first_half', { half_duration: halfDurations[match.id] || 45, first_half_start: new Date().toISOString() })}>Start</Button>
+                              </div>
+                            )}
+                            {match.status === 'first_half' && (
+                              <>
+                                <Button size="sm" variant="outline" className="h-8 text-xs border-amber-500/50 text-amber-400" onClick={() => updateMatchStatus(match.id, 'halftime')}>HT</Button>
+                                <Button size="sm" variant="outline" className="h-8 text-xs border-blue-500/50 text-blue-400" onClick={() => updateMatchStatus(match.id, 'completed', { match_end: new Date().toISOString() })}>FT</Button>
+                              </>
+                            )}
+                            {match.status === 'halftime' && (
+                              <>
+                                <Button size="sm" variant="outline" className="h-8 text-xs border-emerald-500/50 text-emerald-400" onClick={() => updateMatchStatus(match.id, 'second_half', { second_half_start: new Date().toISOString() })}>2nd Half</Button>
+                                <Button size="sm" variant="outline" className="h-8 text-xs border-blue-500/50 text-blue-400" onClick={() => updateMatchStatus(match.id, 'completed', { match_end: new Date().toISOString() })}>FT</Button>
+                              </>
+                            )}
+                            {match.status === 'second_half' && (
+                              <Button size="sm" variant="outline" className="h-8 text-xs border-blue-500/50 text-blue-400" onClick={() => updateMatchStatus(match.id, 'completed', { match_end: new Date().toISOString() })}>FT</Button>
+                            )}
+                            {match.status === 'completed' && (
+                              <span className="text-xs text-blue-400 font-bold px-2 uppercase">FT</span>
+                            )}
+                          </div>
+                          
                           <Button 
                             variant="outline" 
                             size="sm" 
@@ -712,6 +782,17 @@ export default function AdminTournament() {
                           >
                             <Edit2 className="w-3 h-3 mr-2" /> Edit Match
                           </Button>
+                          {match.status !== 'scheduled' && (
+                            <Button 
+                              size="icon" 
+                              variant="ghost" 
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 border border-transparent hover:border-destructive/20 transition-all ml-1"
+                              onClick={() => resetSingleMatch(match.id)}
+                              title="Reset Match"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -734,19 +815,21 @@ export default function AdminTournament() {
           </CardContent>
         </Card>
 
-        <Card className="border-destructive/50 bg-destructive/10">
-          <CardHeader>
-            <CardTitle className="text-destructive font-black flex items-center gap-2">
-              <ShieldAlert className="w-5 h-5" /> Danger Zone
-            </CardTitle>
-            <CardDescription className="text-destructive/80">Completely wipe the tournament database.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" className="border-destructive text-destructive hover:bg-destructive hover:text-white" onClick={() => setConfirmFullReset(true)}>
-              Full Database Reset
-            </Button>
-          </CardContent>
-        </Card>
+        {isSuperAdmin && (
+          <Card className="border-destructive/50 bg-destructive/10">
+            <CardHeader>
+              <CardTitle className="text-destructive font-black flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5" /> Danger Zone
+              </CardTitle>
+              <CardDescription className="text-destructive/80">Completely wipe the tournament database.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline" className="border-destructive text-destructive hover:bg-destructive hover:text-white" onClick={() => setConfirmFullReset(true)}>
+                Full Database Reset
+              </Button>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {confirmFullReset && (
@@ -779,6 +862,9 @@ export default function AdminTournament() {
           matchId={infoMatch.matchId}
           homeTeam={infoMatch.homeTeam}
           awayTeam={infoMatch.awayTeam}
+          onSaveSuccess={(mId, hScore, aScore) => {
+            setMatches(prev => prev.map(m => m.id === mId ? { ...m, home_score: hScore, away_score: aScore } : m));
+          }}
         />
       )}
     </div>

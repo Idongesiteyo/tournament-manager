@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useParams } from "react-router-dom";
-import { Trophy, LayoutDashboard, BarChart3, Settings, ShieldAlert, Users } from "lucide-react";
+import { Trophy, LayoutDashboard, BarChart3, Settings, ShieldAlert, Users, Info } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { Toaster } from "../ui/sonner";
 
@@ -56,6 +56,7 @@ export default function Layout() {
     { label: "Standings", path: `/t/${tournamentId}`, icon: LayoutDashboard },
     { label: "Teams", path: `/t/${tournamentId}/teams`, icon: Users },
     { label: "Stats", path: `/t/${tournamentId}/stats`, icon: BarChart3 },
+    { label: "About", path: `/t/${tournamentId}/about`, icon: Info },
   ];
 
   const adminNavItems = [

@@ -9,6 +9,7 @@ import AdminTeam from "./pages/AdminTeam";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import SuperAdmin from "./pages/SuperAdmin";
+import About from "./pages/About";
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="t/:tournamentId/stats" element={<Stats />} />
           <Route path="t/:tournamentId/teams" element={<Teams />} />
           <Route path="t/:tournamentId/team/:teamId" element={<TeamDetail />} />
+          <Route path="t/:tournamentId/about" element={<About />} />
         </Route>
       </Routes>
     </BrowserRouter>

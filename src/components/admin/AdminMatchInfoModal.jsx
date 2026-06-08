@@ -5,15 +5,65 @@ import { toast } from "sonner";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 
-export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam, awayTeam }) {
+const PlayerAutocomplete = ({ value, onChange, onSelectTeam, teamPlayers, placeholder, homeTeam, awayTeam }) => {
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  
+  const filtered = teamPlayers.filter(p => 
+    p.name.toLowerCase().includes(value.toLowerCase())
+  );
+
+  return (
+    <div className="relative">
+      <Input 
+        placeholder={placeholder} 
+        value={value} 
+        onChange={e => {
+          onChange(e.target.value);
+          setShowSuggestions(true);
+        }}
+        onFocus={() => setShowSuggestions(true)}
+        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+        className="h-9 bg-black/40" 
+      />
+      {showSuggestions && value && filtered.length > 0 && (
+        <div className="absolute z-10 w-full mt-1 bg-[#1a2235] border border-white/10 rounded-md shadow-lg max-h-40 overflow-y-auto custom-scrollbar">
+          {filtered.map(p => {
+            const isHome = p.team_id === homeTeam?.id;
+            const teamBadge = isHome ? homeTeam?.short_name : awayTeam?.short_name;
+            const teamName = isHome ? homeTeam?.name : awayTeam?.name;
+
+            return (
+              <div 
+                key={p.id} 
+                className="px-3 py-2 text-sm hover:bg-white/10 cursor-pointer text-white flex justify-between items-center"
+                onClick={() => {
+                  onChange(p.name);
+                  if (onSelectTeam) onSelectTeam(teamName);
+                  setShowSuggestions(false);
+                }}
+              >
+                <span>{p.name} <span className="text-xs text-slate-400">#{p.jersey_number}</span></span>
+                <span className="text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-slate-300">{teamBadge}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam, awayTeam, onSaveSuccess }) {
   const [info, setInfo] = useState({
     goals: [],
     assists: [],
     yellow_cards: [],
     red_cards: []
   });
+  const [teamPlayers, setTeamPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
 
   // Form states
   const [goalForm, setGoalForm] = useState({ player_name: "", team_name: homeTeam?.name || "", minute: "", is_penalty: false });
@@ -35,21 +85,28 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
           red_cards: data.red_cards || []
         });
       } else {
-        // Reset if no data
         setInfo({ goals: [], assists: [], yellow_cards: [], red_cards: [] });
       }
+
+      if (homeTeam?.id && awayTeam?.id) {
+        const { data: players } = await supabase
+          .from("players")
+          .select("*")
+          .in("team_id", [homeTeam.id, awayTeam.id]);
+        if (players) setTeamPlayers(players);
+      }
+
       setLoading(false);
     };
     
     fetchInfo();
-  }, [isOpen, matchId]);
+  }, [isOpen, matchId, homeTeam, awayTeam]);
 
   if (!isOpen) return null;
 
   const handleSave = async () => {
     setSaving(true);
     
-    // Check if record exists
     const { data: existing } = await supabase.from("match_info").select("match_id").eq("match_id", matchId).single();
     
     let error;
@@ -59,6 +116,21 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
     } else {
       const res = await supabase.from("match_info").insert([{ match_id: matchId, ...info }]);
       error = res.error;
+    }
+
+    if (!error) {
+      // Automatically update the match scoreline based on the goals array
+      const homeGoalsCount = info.goals.filter(g => g.team_name === homeTeam?.name).length;
+      const awayGoalsCount = info.goals.filter(g => g.team_name === awayTeam?.name).length;
+      
+      await supabase.from("matches").update({
+        home_score: homeGoalsCount,
+        away_score: awayGoalsCount
+      }).eq("id", matchId);
+      
+      if (onSaveSuccess) {
+        onSaveSuccess(matchId, homeGoalsCount, awayGoalsCount);
+      }
     }
 
     setSaving(false);
@@ -76,14 +148,32 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
       return;
     }
     
-    const newEvent = { ...formState, id: crypto.randomUUID() };
-    if (newEvent.minute) newEvent.minute = parseInt(newEvent.minute, 10);
+    if (editingEvent && editingEvent.type === type) {
+      // Update existing
+      setInfo(prev => ({
+        ...prev,
+        [type]: prev[type].map(e => e.id === editingEvent.id ? { ...e, ...formState, minute: formState.minute ? parseInt(formState.minute, 10) : "" } : e)
+      }));
+      setEditingEvent(null);
+    } else {
+      // Add new
+      const newEvent = { ...formState, id: crypto.randomUUID() };
+      if (newEvent.minute) newEvent.minute = parseInt(newEvent.minute, 10);
+      setInfo(prev => ({ ...prev, [type]: [...prev[type], newEvent] }));
+    }
     
-    setInfo(prev => ({ ...prev, [type]: [...prev[type], newEvent] }));
-    
-    // Reset form but keep team name
     if (type === 'goals') setFormState({ player_name: "", team_name: defaultTeam, minute: "", is_penalty: false });
     else setFormState({ player_name: "", team_name: defaultTeam, minute: "" });
+  };
+
+  const startEditEvent = (type, event, setFormState) => {
+    setEditingEvent({ type, id: event.id });
+    setFormState({
+      player_name: event.player_name,
+      team_name: event.team_name,
+      minute: event.minute || "",
+      is_penalty: event.is_penalty || false
+    });
   };
 
   const removeEvent = (type, id) => {
@@ -108,7 +198,7 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
         {/* Content */}
         <div className="p-6 overflow-y-auto flex-1 space-y-8 custom-scrollbar">
           {loading ? (
-            <div className="text-center text-slate-400 py-10">Loading...</div>
+            <div className="text-center text-slate-400 py-10">Loading data...</div>
           ) : (
             <>
               {/* GOALS */}
@@ -117,7 +207,15 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                 <div className="flex flex-wrap gap-3 items-end bg-black/20 p-4 rounded-lg border border-white/5">
                   <div className="flex-1 min-w-[150px]">
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Player</label>
-                    <Input placeholder="Player Name" value={goalForm.player_name} onChange={e => setGoalForm({...goalForm, player_name: e.target.value})} className="h-9 bg-black/40" />
+                    <PlayerAutocomplete 
+                      placeholder="Type player name..."
+                      value={goalForm.player_name}
+                      onChange={val => setGoalForm({...goalForm, player_name: val})}
+                      onSelectTeam={team => setGoalForm(prev => ({...prev, team_name: team}))}
+                      teamPlayers={teamPlayers}
+                      homeTeam={homeTeam}
+                      awayTeam={awayTeam}
+                    />
                   </div>
                   <div className="w-32">
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Team</label>
@@ -134,7 +232,16 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                     <input type="checkbox" id="pen" checked={goalForm.is_penalty} onChange={e => setGoalForm({...goalForm, is_penalty: e.target.checked})} className="rounded bg-black border-white/20" />
                     <label htmlFor="pen" className="text-xs text-slate-300 cursor-pointer">Penalty</label>
                   </div>
-                  <Button onClick={() => addEvent("goals", goalForm, setGoalForm, homeTeam?.name)} size="sm" className="h-9"><Plus className="w-4 h-4 mr-1" /> Add</Button>
+                  <Button 
+                    onClick={() => addEvent("goals", goalForm, setGoalForm, homeTeam?.name)} 
+                    size="sm" 
+                    className={`h-9 ${editingEvent?.type === 'goals' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                  >
+                    {editingEvent?.type === 'goals' ? 'Update' : <><Plus className="w-4 h-4 mr-1" /> Add</>}
+                  </Button>
+                  {editingEvent?.type === 'goals' && (
+                    <Button variant="ghost" size="sm" onClick={() => { setEditingEvent(null); setGoalForm({ player_name: "", team_name: homeTeam?.name, minute: "", is_penalty: false }); }} className="h-9">Cancel</Button>
+                  )}
                 </div>
                 {info.goals.map(g => (
                   <div key={g.id} className="flex items-center justify-between bg-white/[0.02] p-2 rounded border border-white/5 text-sm">
@@ -144,7 +251,10 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                       <span className="text-slate-500 text-xs">({g.team_name})</span>
                       {g.is_penalty && <span className="bg-amber-500/20 text-amber-400 text-[10px] px-1.5 py-0.5 rounded font-bold">⚽ Penalty</span>}
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => removeEvent("goals", g.id)} className="h-6 w-6 text-slate-500 hover:text-red-400"><Trash2 className="w-3 h-3" /></Button>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => startEditEvent("goals", g, setGoalForm)} className="h-6 w-6 text-slate-500 hover:text-blue-400">✏️</Button>
+                      <Button variant="ghost" size="icon" onClick={() => removeEvent("goals", g.id)} className="h-6 w-6 text-slate-500 hover:text-red-400"><Trash2 className="w-3 h-3" /></Button>
+                    </div>
                   </div>
                 ))}
               </section>
@@ -155,7 +265,15 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                 <div className="flex flex-wrap gap-3 items-end bg-black/20 p-4 rounded-lg border border-white/5">
                   <div className="flex-1 min-w-[150px]">
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Player</label>
-                    <Input placeholder="Player Name" value={assistForm.player_name} onChange={e => setAssistForm({...assistForm, player_name: e.target.value})} className="h-9 bg-black/40" />
+                    <PlayerAutocomplete 
+                      placeholder="Type player name..."
+                      value={assistForm.player_name}
+                      onChange={val => setAssistForm({...assistForm, player_name: val})}
+                      onSelectTeam={team => setAssistForm(prev => ({...prev, team_name: team}))}
+                      teamPlayers={teamPlayers}
+                      homeTeam={homeTeam}
+                      awayTeam={awayTeam}
+                    />
                   </div>
                   <div className="w-32">
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Team</label>
@@ -168,7 +286,16 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Min</label>
                     <Input type="number" placeholder="45" value={assistForm.minute} onChange={e => setAssistForm({...assistForm, minute: e.target.value})} className="h-9 bg-black/40" />
                   </div>
-                  <Button onClick={() => addEvent("assists", assistForm, setAssistForm, homeTeam?.name)} size="sm" className="h-9"><Plus className="w-4 h-4 mr-1" /> Add</Button>
+                  <Button 
+                    onClick={() => addEvent("assists", assistForm, setAssistForm, homeTeam?.name)} 
+                    size="sm" 
+                    className={`h-9 ${editingEvent?.type === 'assists' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                  >
+                    {editingEvent?.type === 'assists' ? 'Update' : <><Plus className="w-4 h-4 mr-1" /> Add</>}
+                  </Button>
+                  {editingEvent?.type === 'assists' && (
+                    <Button variant="ghost" size="sm" onClick={() => { setEditingEvent(null); setAssistForm({ player_name: "", team_name: homeTeam?.name, minute: "" }); }} className="h-9">Cancel</Button>
+                  )}
                 </div>
                 {info.assists.map(a => (
                   <div key={a.id} className="flex items-center justify-between bg-white/[0.02] p-2 rounded border border-white/5 text-sm">
@@ -177,7 +304,10 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                       <span className="font-bold text-white">{a.player_name}</span>
                       <span className="text-slate-500 text-xs">({a.team_name})</span>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => removeEvent("assists", a.id)} className="h-6 w-6 text-slate-500 hover:text-red-400"><Trash2 className="w-3 h-3" /></Button>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => startEditEvent("assists", a, setAssistForm)} className="h-6 w-6 text-slate-500 hover:text-blue-400">✏️</Button>
+                      <Button variant="ghost" size="icon" onClick={() => removeEvent("assists", a.id)} className="h-6 w-6 text-slate-500 hover:text-red-400"><Trash2 className="w-3 h-3" /></Button>
+                    </div>
                   </div>
                 ))}
               </section>
@@ -188,7 +318,15 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                 <div className="flex flex-wrap gap-3 items-end bg-black/20 p-4 rounded-lg border border-white/5">
                   <div className="flex-1 min-w-[150px]">
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Player</label>
-                    <Input placeholder="Player Name" value={yellowForm.player_name} onChange={e => setYellowForm({...yellowForm, player_name: e.target.value})} className="h-9 bg-black/40" />
+                    <PlayerAutocomplete 
+                      placeholder="Type player name..."
+                      value={yellowForm.player_name}
+                      onChange={val => setYellowForm({...yellowForm, player_name: val})}
+                      onSelectTeam={team => setYellowForm(prev => ({...prev, team_name: team}))}
+                      teamPlayers={teamPlayers}
+                      homeTeam={homeTeam}
+                      awayTeam={awayTeam}
+                    />
                   </div>
                   <div className="w-32">
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Team</label>
@@ -201,7 +339,16 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Min</label>
                     <Input type="number" placeholder="45" value={yellowForm.minute} onChange={e => setYellowForm({...yellowForm, minute: e.target.value})} className="h-9 bg-black/40" />
                   </div>
-                  <Button onClick={() => addEvent("yellow_cards", yellowForm, setYellowForm, homeTeam?.name)} size="sm" className="h-9"><Plus className="w-4 h-4 mr-1" /> Add</Button>
+                  <Button 
+                    onClick={() => addEvent("yellow_cards", yellowForm, setYellowForm, homeTeam?.name)} 
+                    size="sm" 
+                    className={`h-9 ${editingEvent?.type === 'yellow_cards' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                  >
+                    {editingEvent?.type === 'yellow_cards' ? 'Update' : <><Plus className="w-4 h-4 mr-1" /> Add</>}
+                  </Button>
+                  {editingEvent?.type === 'yellow_cards' && (
+                    <Button variant="ghost" size="sm" onClick={() => { setEditingEvent(null); setYellowForm({ player_name: "", team_name: homeTeam?.name, minute: "" }); }} className="h-9">Cancel</Button>
+                  )}
                 </div>
                 {info.yellow_cards.map(y => (
                   <div key={y.id} className="flex items-center justify-between bg-white/[0.02] p-2 rounded border border-white/5 text-sm">
@@ -210,7 +357,10 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                       <span className="font-bold text-white">{y.player_name}</span>
                       <span className="text-slate-500 text-xs">({y.team_name})</span>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => removeEvent("yellow_cards", y.id)} className="h-6 w-6 text-slate-500 hover:text-red-400"><Trash2 className="w-3 h-3" /></Button>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => startEditEvent("yellow_cards", y, setYellowForm)} className="h-6 w-6 text-slate-500 hover:text-blue-400">✏️</Button>
+                      <Button variant="ghost" size="icon" onClick={() => removeEvent("yellow_cards", y.id)} className="h-6 w-6 text-slate-500 hover:text-red-400"><Trash2 className="w-3 h-3" /></Button>
+                    </div>
                   </div>
                 ))}
               </section>
@@ -221,7 +371,15 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                 <div className="flex flex-wrap gap-3 items-end bg-black/20 p-4 rounded-lg border border-white/5">
                   <div className="flex-1 min-w-[150px]">
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Player</label>
-                    <Input placeholder="Player Name" value={redForm.player_name} onChange={e => setRedForm({...redForm, player_name: e.target.value})} className="h-9 bg-black/40" />
+                    <PlayerAutocomplete 
+                      placeholder="Type player name..."
+                      value={redForm.player_name}
+                      onChange={val => setRedForm({...redForm, player_name: val})}
+                      onSelectTeam={team => setRedForm(prev => ({...prev, team_name: team}))}
+                      teamPlayers={teamPlayers}
+                      homeTeam={homeTeam}
+                      awayTeam={awayTeam}
+                    />
                   </div>
                   <div className="w-32">
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Team</label>
@@ -234,7 +392,16 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Min</label>
                     <Input type="number" placeholder="45" value={redForm.minute} onChange={e => setRedForm({...redForm, minute: e.target.value})} className="h-9 bg-black/40" />
                   </div>
-                  <Button onClick={() => addEvent("red_cards", redForm, setRedForm, homeTeam?.name)} size="sm" className="h-9"><Plus className="w-4 h-4 mr-1" /> Add</Button>
+                  <Button 
+                    onClick={() => addEvent("red_cards", redForm, setRedForm, homeTeam?.name)} 
+                    size="sm" 
+                    className={`h-9 ${editingEvent?.type === 'red_cards' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                  >
+                    {editingEvent?.type === 'red_cards' ? 'Update' : <><Plus className="w-4 h-4 mr-1" /> Add</>}
+                  </Button>
+                  {editingEvent?.type === 'red_cards' && (
+                    <Button variant="ghost" size="sm" onClick={() => { setEditingEvent(null); setRedForm({ player_name: "", team_name: homeTeam?.name, minute: "" }); }} className="h-9">Cancel</Button>
+                  )}
                 </div>
                 {info.red_cards.map(r => (
                   <div key={r.id} className="flex items-center justify-between bg-white/[0.02] p-2 rounded border border-white/5 text-sm">
@@ -243,7 +410,10 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                       <span className="font-bold text-white">{r.player_name}</span>
                       <span className="text-slate-500 text-xs">({r.team_name})</span>
                     </div>
-                    <Button variant="ghost" size="icon" onClick={() => removeEvent("red_cards", r.id)} className="h-6 w-6 text-slate-500 hover:text-red-400"><Trash2 className="w-3 h-3" /></Button>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => startEditEvent("red_cards", r, setRedForm)} className="h-6 w-6 text-slate-500 hover:text-blue-400">✏️</Button>
+                      <Button variant="ghost" size="icon" onClick={() => removeEvent("red_cards", r.id)} className="h-6 w-6 text-slate-500 hover:text-red-400"><Trash2 className="w-3 h-3" /></Button>
+                    </div>
                   </div>
                 ))}
               </section>

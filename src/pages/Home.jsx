@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { cn } from "../lib/utils";
 import PublicMatchDetailModal from "../components/ui/PublicMatchDetailModal";
+import { MatchTimer } from "../components/ui/MatchTimer";
 
 export default function Home() {
   const { tournamentId } = useParams();
@@ -234,9 +235,9 @@ export default function Home() {
                         key={m.id} 
                         className={cn(
                           "flex flex-col p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors relative overflow-hidden",
-                          m.status === "completed" && "cursor-pointer"
+                          ['completed', 'first_half', 'second_half', 'halftime'].includes(m.status) && "cursor-pointer"
                         )}
-                        onClick={() => m.status === "completed" && setSelectedMatch({ match: m, homeTeam, awayTeam })}
+                        onClick={() => ['completed', 'first_half', 'second_half', 'halftime'].includes(m.status) && setSelectedMatch({ match: m, homeTeam, awayTeam })}
                       >
                         {/* Match Date Header */}
                         {m.match_date && (
@@ -258,10 +259,13 @@ export default function Home() {
                             <span className="font-bold text-sm text-center text-white">{homeTeam.name}</span>
                           </div>
 
-                          <div className="w-24 flex justify-center mx-2 shrink-0">
-                            {m.status === "completed" ? (
-                              <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-2 rounded-xl text-xl font-black tracking-widest">
-                                {m.home_score} - {m.away_score}
+                          <div className="w-24 flex flex-col items-center justify-center mx-2 shrink-0 relative">
+                            {['completed', 'first_half', 'second_half', 'halftime'].includes(m.status) ? (
+                              <div className="relative w-full flex flex-col items-center">
+                                <MatchTimer match={m} />
+                                <div className={`px-4 py-2 rounded-xl text-xl font-black tracking-widest border w-full text-center ${m.status === 'completed' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'}`}>
+                                  {m.home_score ?? 0} - {m.away_score ?? 0}
+                                </div>
                               </div>
                             ) : (
                               <span className="flex items-center justify-center w-8 h-8 text-slate-500 text-xs font-bold bg-black/40 rounded-full border border-white/5">
