@@ -31,7 +31,7 @@ export default function Dashboard() {
         if (profile) {
           setUserRole(profile.role);
           if (profile.role !== "pending") {
-            fetchTournaments(session.user.id);
+            fetchTournaments(session.user.id, profile.role);
           } else {
             setLoading(false);
           }
@@ -41,17 +41,31 @@ export default function Dashboard() {
     checkAuth();
   }, [navigate]);
 
-  const fetchTournaments = async (userId) => {
+  const fetchTournaments = async (userId, role) => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("tournaments")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+    let allTournaments = [];
     
-    if (!error && data) {
-      setTournaments(data);
+    if (role === 'super_admin') {
+      const { data } = await supabase.from("tournaments").select("*").order("created_at", { ascending: false });
+      if (data) allTournaments = data;
+    } else {
+      const { data: owned } = await supabase.from("tournaments").select("*").eq("user_id", userId);
+      
+      const { data: assignments } = await supabase.from("tournament_admins").select("tournament_id").eq("admin_id", userId);
+      const assignedIds = assignments?.map(a => a.tournament_id) || [];
+      
+      let assigned = [];
+      if (assignedIds.length > 0) {
+        const { data } = await supabase.from("tournaments").select("*").in("id", assignedIds);
+        if (data) assigned = data;
+      }
+      
+      const map = new Map();
+      [...(owned||[]), ...assigned].forEach(t => map.set(t.id, t));
+      allTournaments = Array.from(map.values()).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
     }
+    
+    setTournaments(allTournaments);
     setLoading(false);
   };
 
@@ -99,11 +113,18 @@ export default function Dashboard() {
     <div className="space-y-8 animate-in fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-black text-primary flex items-center gap-3">
-          <Trophy className="w-8 h-8" /> My Tournaments
+          <Trophy className="w-8 h-8" /> {userRole === 'super_admin' ? 'All Tournaments (Super Admin)' : 'My Tournaments'}
         </h1>
-        <Button variant="outline" onClick={handleLogout} className="border-white/10 hover:bg-white/5">
-          <LogOut className="w-4 h-4 mr-2" /> Logout
-        </Button>
+        <div className="flex gap-2">
+          {userRole === 'super_admin' && (
+            <Button variant="outline" onClick={() => navigate("/super-admin")} className="border-primary/50 text-primary hover:bg-primary/10">
+              Super Admin Panel
+            </Button>
+          )}
+          <Button variant="outline" onClick={handleLogout} className="border-white/10 hover:bg-white/5">
+            <LogOut className="w-4 h-4 mr-2" /> Logout
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

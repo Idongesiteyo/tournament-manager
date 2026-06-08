@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, UserPlus, Trash2, Check, X, Shield, Users, Edit2, Save } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { toast } from "sonner";
+import UnauthorizedAccess from "../components/ui/UnauthorizedAccess";
 
 const VALID_FORMATIONS = ["3-3-1", "3-2-2", "2-3-2", "2-4-1", "4-2-1"];
 
@@ -15,6 +16,7 @@ export default function AdminTeam() {
   const [team, setTeam] = useState(null);
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState(false);
   
   const [newPlayerName, setNewPlayerName] = useState("");
   const [newPlayerNum, setNewPlayerNum] = useState("");
@@ -24,6 +26,43 @@ export default function AdminTeam() {
   const [editData, setEditData] = useState({ name: "", jersey_number: "", position: "" });
 
   const loadData = async () => {
+    setLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { setAuthError(true); setLoading(false); return; }
+
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).single();
+    const isSuperAdmin = profile?.role === 'super_admin';
+
+    const { data: tData, error: tErr } = await supabase
+      .from("tournaments")
+      .select("user_id")
+      .eq("id", tournamentId)
+      .single();
+      
+    if (tErr || !tData) {
+      setAuthError(true);
+      setLoading(false);
+      return;
+    }
+
+    let isAuthorized = isSuperAdmin || tData.user_id === session.user.id;
+
+    if (!isAuthorized) {
+      const { data: assignment } = await supabase
+        .from("tournament_admins")
+        .select("id")
+        .eq("tournament_id", tournamentId)
+        .eq("admin_id", session.user.id)
+        .maybeSingle();
+      if (assignment) isAuthorized = true;
+    }
+      
+    if (!isAuthorized) {
+      setAuthError(true);
+      setLoading(false);
+      return;
+    }
+
     const [t, p] = await Promise.all([
       supabase.from("teams").select("*").eq("id", teamId).single(),
       supabase.from("players").select("*").eq("team_id", teamId)
@@ -131,7 +170,8 @@ export default function AdminTeam() {
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-muted-foreground">Loading squad data...</div>;
+  if (authError) return <UnauthorizedAccess />;
+  if (loading) return <div className="p-8 text-center text-muted-foreground">Loading Team Data...</div>;
   if (!team) return <div className="p-8 text-center text-destructive font-bold">Team not found</div>;
 
   const starters = players.filter(p => p.is_starter).sort((a,b) => a.jersey_number - b.jersey_number);

@@ -9,6 +9,7 @@ import { TeamColorBadge } from "../components/shared/TeamColorBadge";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import AdminMatchInfoModal from "../components/admin/AdminMatchInfoModal";
+import UnauthorizedAccess from "../components/ui/UnauthorizedAccess";
 
 export default function AdminTournament() {
   const { tournamentId } = useParams();
@@ -46,13 +47,34 @@ export default function AdminTournament() {
         return;
       }
       
+      const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).single();
+      const isSuperAdmin = profile?.role === 'super_admin';
+      
       const { data: tData, error: tErr } = await supabase
         .from("tournaments")
         .select("*")
         .eq("id", tournamentId)
         .single();
         
-      if (tErr || !tData || tData.user_id !== session.user.id) {
+      if (tErr || !tData) {
+        setAuthError(true);
+        setLoading(false);
+        return;
+      }
+
+      let isAuthorized = isSuperAdmin || tData.user_id === session.user.id;
+
+      if (!isAuthorized) {
+        const { data: assignment } = await supabase
+          .from("tournament_admins")
+          .select("id")
+          .eq("tournament_id", tournamentId)
+          .eq("admin_id", session.user.id)
+          .maybeSingle();
+        if (assignment) isAuthorized = true;
+      }
+        
+      if (!isAuthorized) {
         setAuthError(true);
         setLoading(false);
         return;
@@ -273,18 +295,8 @@ export default function AdminTournament() {
     setConfirmFullReset(false);
   };
 
+  if (authError) return <UnauthorizedAccess />;
   if (loading) return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
-
-  if (authError) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <ShieldAlert className="w-12 h-12 text-destructive" />
-        <h2 className="text-2xl font-bold">Access Denied</h2>
-        <p className="text-muted-foreground">You do not have permission to manage this tournament.</p>
-        <Button onClick={() => navigate("/dashboard")}>Return to Dashboard</Button>
-      </div>
-    );
-  }
 
   const seasonComplete = isSeasonComplete(matches);
   const finalMatch = matches.find(m => m.stage === "final");
