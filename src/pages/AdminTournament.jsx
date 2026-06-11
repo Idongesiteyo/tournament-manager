@@ -346,16 +346,16 @@ export default function AdminTournament() {
 
   return (
     <div className="space-y-8 animate-in fade-in pb-20">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate("/dashboard")}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <h1 className="text-3xl font-black text-primary flex items-center gap-3">
-            <Settings className="w-8 h-8" /> Manage League
+          <h1 className="text-2xl sm:text-3xl font-black text-primary flex items-center gap-2 sm:gap-3 leading-tight">
+            <Settings className="w-6 h-6 sm:w-8 sm:h-8 shrink-0" /> Manage League
           </h1>
         </div>
-        <Button variant="outline" asChild className="border-white/10 hover:bg-white/5">
+        <Button variant="outline" asChild className="border-white/10 hover:bg-white/5 whitespace-nowrap text-xs sm:text-sm px-3 shrink-0">
           <Link to={`/t/${tournamentId}`}>View Public Page</Link>
         </Button>
       </div>

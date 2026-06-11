@@ -275,12 +275,12 @@ export default function AdminTeam() {
               ) : (
                 <div className="space-y-2">
                   {starters.map(p => (
-                    <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] border border-emerald-500/20">
+                    <div key={p.id} className="flex items-center justify-between p-2 sm:p-3 rounded-lg bg-white/[0.02] border border-white/5 border-l-2 border-l-primary gap-2">
                       {editingPlayerId === p.id ? (
-                        <div className="flex-1 flex items-center gap-2 mr-4">
+                        <div className="flex-1 flex items-center gap-2 mr-2 sm:mr-4">
                           <Input className="h-8 bg-black/20" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} placeholder="Name" />
-                          <Input type="number" className="h-8 w-20 bg-black/20" value={editData.jersey_number} onChange={e => setEditData({...editData, jersey_number: e.target.value})} placeholder="#" />
-                          <select className="h-8 rounded-md border border-white/10 bg-black/20 px-2 text-white text-xs" value={editData.position} onChange={e => setEditData({...editData, position: e.target.value})}>
+                          <Input type="number" className="h-8 w-16 sm:w-20 bg-black/20" value={editData.jersey_number} onChange={e => setEditData({...editData, jersey_number: e.target.value})} placeholder="#" />
+                          <select className="h-8 rounded-md border border-white/10 bg-black/20 px-1 sm:px-2 text-white text-xs w-20 sm:w-auto" value={editData.position} onChange={e => setEditData({...editData, position: e.target.value})}>
                             <option className="bg-[#0f1423]">Forward</option>
                             <option className="bg-[#0f1423]">Midfielder</option>
                             <option className="bg-[#0f1423]">Defender</option>
@@ -288,14 +288,14 @@ export default function AdminTeam() {
                           </select>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-4">
-                          <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs">
+                        <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
+                          <div className="w-7 h-7 sm:w-8 sm:h-8 shrink-0 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs border border-primary/20">
                             {p.jersey_number}
                           </div>
-                          <div>
-                            <p className="font-bold text-white flex items-center gap-2">
-                              {p.name}
-                              <span className="text-[10px] uppercase tracking-wider text-slate-400 bg-black/20 px-1.5 py-0.5 rounded-sm">
+                          <div className="min-w-0">
+                            <p className="font-bold text-white text-sm sm:text-base flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2 leading-tight">
+                              <span className="truncate">{p.name}</span>
+                              <span className="text-[9px] sm:text-[10px] uppercase tracking-wider text-primary/70 bg-primary/10 px-1 sm:px-1.5 py-0.5 rounded-sm w-fit shrink-0">
                                 {p.position}
                               </span>
                             </p>
@@ -303,17 +303,17 @@ export default function AdminTeam() {
                         </div>
                       )}
                       
-                      <div className="flex items-center gap-1 md:gap-2">
+                      <div className="flex items-center gap-0 sm:gap-1 md:gap-2 shrink-0">
                         {editingPlayerId === p.id ? (
                           <>
-                            <Button variant="ghost" size="icon" onClick={() => saveEdit(p.id)} className="text-emerald-400 hover:text-emerald-300 h-8 w-8"><Save className="w-4 h-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={cancelEdit} className="text-slate-400 hover:text-white h-8 w-8"><X className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => saveEdit(p.id)} className="text-emerald-400 hover:text-emerald-300 h-7 w-7 sm:h-8 sm:w-8"><Save className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={cancelEdit} className="text-slate-400 hover:text-white h-7 w-7 sm:h-8 sm:w-8"><X className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></Button>
                           </>
                         ) : (
                           <>
-                            <Button variant="outline" size="sm" onClick={() => toggleStarter(p)} className="h-8 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hidden md:inline-flex">Starter</Button>
-                            <Button variant="ghost" size="icon" onClick={() => startEdit(p)} className="text-slate-400 hover:text-white h-8 w-8"><Edit2 className="w-4 h-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => deletePlayer(p.id)} className="text-slate-500 hover:text-destructive h-8 w-8"><Trash2 className="w-4 h-4" /></Button>
+                            <Button variant="outline" size="sm" onClick={() => toggleStarter(p)} className="h-7 sm:h-8 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 whitespace-nowrap text-[10px] sm:text-xs px-2 sm:px-3">Bench</Button>
+                            <Button variant="ghost" size="icon" onClick={() => startEdit(p)} className="text-slate-400 hover:text-white h-7 w-7 sm:h-8 sm:w-8"><Edit2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => deletePlayer(p.id)} className="text-slate-500 hover:text-destructive h-7 w-7 sm:h-8 sm:w-8"><Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></Button>
                           </>
                         )}
                       </div>
@@ -336,12 +336,12 @@ export default function AdminTeam() {
               ) : (
                 <div className="space-y-2">
                   {bench.map(p => (
-                    <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] border border-white/5">
+                    <div key={p.id} className="flex items-center justify-between p-2 sm:p-3 rounded-lg bg-white/[0.02] border border-white/5 gap-2">
                       {editingPlayerId === p.id ? (
-                        <div className="flex-1 flex items-center gap-2 mr-4">
+                        <div className="flex-1 flex items-center gap-2 mr-2 sm:mr-4">
                           <Input className="h-8 bg-black/20" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} placeholder="Name" />
-                          <Input type="number" className="h-8 w-20 bg-black/20" value={editData.jersey_number} onChange={e => setEditData({...editData, jersey_number: e.target.value})} placeholder="#" />
-                          <select className="h-8 rounded-md border border-white/10 bg-black/20 px-2 text-white text-xs" value={editData.position} onChange={e => setEditData({...editData, position: e.target.value})}>
+                          <Input type="number" className="h-8 w-16 sm:w-20 bg-black/20" value={editData.jersey_number} onChange={e => setEditData({...editData, jersey_number: e.target.value})} placeholder="#" />
+                          <select className="h-8 rounded-md border border-white/10 bg-black/20 px-1 sm:px-2 text-white text-xs w-20 sm:w-auto" value={editData.position} onChange={e => setEditData({...editData, position: e.target.value})}>
                             <option className="bg-[#0f1423]">Forward</option>
                             <option className="bg-[#0f1423]">Midfielder</option>
                             <option className="bg-[#0f1423]">Defender</option>
@@ -349,14 +349,14 @@ export default function AdminTeam() {
                           </select>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-4">
-                          <div className="w-8 h-8 rounded-full bg-white/5 text-slate-300 flex items-center justify-center font-bold text-xs">
+                        <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
+                          <div className="w-7 h-7 sm:w-8 sm:h-8 shrink-0 rounded-full bg-white/5 text-slate-300 flex items-center justify-center font-bold text-xs">
                             {p.jersey_number}
                           </div>
-                          <div>
-                            <p className="font-bold text-slate-300 flex items-center gap-2">
-                              {p.name}
-                              <span className="text-[10px] uppercase tracking-wider text-slate-500 bg-black/20 px-1.5 py-0.5 rounded-sm">
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-300 text-sm sm:text-base flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2 leading-tight">
+                              <span className="truncate">{p.name}</span>
+                              <span className="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-500 bg-black/20 px-1 sm:px-1.5 py-0.5 rounded-sm w-fit shrink-0">
                                 {p.position}
                               </span>
                             </p>
@@ -364,17 +364,17 @@ export default function AdminTeam() {
                         </div>
                       )}
 
-                      <div className="flex items-center gap-1 md:gap-2">
+                      <div className="flex items-center gap-0 sm:gap-1 md:gap-2 shrink-0">
                         {editingPlayerId === p.id ? (
                           <>
-                            <Button variant="ghost" size="icon" onClick={() => saveEdit(p.id)} className="text-emerald-400 hover:text-emerald-300 h-8 w-8"><Save className="w-4 h-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={cancelEdit} className="text-slate-400 hover:text-white h-8 w-8"><X className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => saveEdit(p.id)} className="text-emerald-400 hover:text-emerald-300 h-7 w-7 sm:h-8 sm:w-8"><Save className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={cancelEdit} className="text-slate-400 hover:text-white h-7 w-7 sm:h-8 sm:w-8"><X className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></Button>
                           </>
                         ) : (
                           <>
-                            <Button variant="outline" size="sm" onClick={() => toggleStarter(p)} className="h-8 border-white/10 text-slate-400 hover:text-white hover:bg-white/5 hidden md:inline-flex">Move up</Button>
-                            <Button variant="ghost" size="icon" onClick={() => startEdit(p)} className="text-slate-400 hover:text-white h-8 w-8"><Edit2 className="w-4 h-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => deletePlayer(p.id)} className="text-slate-500 hover:text-destructive h-8 w-8"><Trash2 className="w-4 h-4" /></Button>
+                            <Button variant="outline" size="sm" onClick={() => toggleStarter(p)} className="h-7 sm:h-8 border-white/10 text-slate-400 hover:text-white hover:bg-white/5 whitespace-nowrap text-[10px] sm:text-xs px-2 sm:px-3">Move up</Button>
+                            <Button variant="ghost" size="icon" onClick={() => startEdit(p)} className="text-slate-400 hover:text-white h-7 w-7 sm:h-8 sm:w-8"><Edit2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => deletePlayer(p.id)} className="text-slate-500 hover:text-destructive h-7 w-7 sm:h-8 sm:w-8"><Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" /></Button>
                           </>
                         )}
                       </div>

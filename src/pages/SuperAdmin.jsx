@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { Shield, ShieldAlert, CheckCircle2, Clock, Users, Trophy, Activity, Trash2 } from "lucide-react";
+import { Shield, ShieldAlert, CheckCircle2, Clock, Users, Trophy, Activity, Trash2, Briefcase } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -13,6 +13,8 @@ export default function SuperAdmin() {
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [activeTab, setActiveTab] = useState("users");
   const navigate = useNavigate();
 
@@ -30,12 +32,17 @@ export default function SuperAdmin() {
         .eq("id", session.user.id)
         .single();
 
-      if (!profile || profile.role !== "super_admin") {
+      if (!profile || (profile.role !== "super_admin" && profile.role !== "admin")) {
         navigate("/dashboard");
         return;
       }
 
-      setIsSuperAdmin(true);
+      setIsSuperAdmin(profile.role === "super_admin");
+      setIsAdmin(profile.role === "admin");
+      setCurrentUserId(session.user.id);
+      if (profile.role !== "super_admin" && activeTab === "users") {
+        setActiveTab("tournaments");
+      }
       await Promise.all([
         fetchUsers(),
         fetchTournaments(),
@@ -138,12 +145,13 @@ export default function SuperAdmin() {
     return null;
   };
 
-  if (!isSuperAdmin && !loading) return null;
+  if (!isSuperAdmin && !isAdmin && !loading) return null;
   if (loading) return <div className="p-8 text-center text-muted-foreground">Loading Super Admin Panel...</div>;
 
   const pendingUsers = users.filter(u => u.role === "pending");
   const adminUsers = users.filter(u => u.role === "admin");
   const superAdmins = users.filter(u => u.role === "super_admin");
+  const tournamentManagers = users.filter(u => u.role === "tournament_manager");
   const declinedUsers = users.filter(u => u.role === "declined");
 
   const getUserEmail = (id) => users.find(u => u.id === id)?.email || "Unknown User";
@@ -152,55 +160,70 @@ export default function SuperAdmin() {
     <div className="space-y-8 animate-in fade-in pb-20">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-black text-primary flex items-center gap-3">
-          <ShieldAlert className="w-8 h-8" /> Super Admin Panel
+          <ShieldAlert className="w-8 h-8" /> {isSuperAdmin ? "Super Admin Panel" : "Admin Panel"}
         </h1>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-white/[0.02] border-white/5">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-amber-500/20 rounded-full text-amber-500">
-              <Clock className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Pending Approval</p>
-              <h2 className="text-2xl font-black">{pendingUsers.length}</h2>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-white/[0.02] border-white/5">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-emerald-500/20 rounded-full text-emerald-500">
-              <CheckCircle2 className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Active Admins</p>
-              <h2 className="text-2xl font-black">{adminUsers.length}</h2>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-primary/5 border-primary/20">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-primary/20 rounded-full text-primary">
-              <Shield className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Super Admins</p>
-              <h2 className="text-2xl font-black text-primary">{superAdmins.length}</h2>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {isSuperAdmin && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+          <Card className="bg-white/[0.02] border-white/5">
+            <CardContent className="p-6 flex items-center gap-4">
+              <div className="p-3 bg-amber-500/20 rounded-full text-amber-500">
+                <Clock className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Pending Approval</p>
+                <h2 className="text-2xl font-black">{pendingUsers.length}</h2>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white/[0.02] border-white/5">
+            <CardContent className="p-6 flex items-center gap-4">
+              <div className="p-3 bg-emerald-500/20 rounded-full text-emerald-500">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Active Admins</p>
+                <h2 className="text-2xl font-black">{adminUsers.length}</h2>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white/[0.02] border-white/5">
+            <CardContent className="p-4 md:p-6 flex items-center gap-3 md:gap-4">
+              <div className="p-2 md:p-3 bg-blue-500/20 rounded-full text-blue-500">
+                <Briefcase className="w-5 h-5 md:w-6 md:h-6" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground leading-tight">Tournament Managers</p>
+                <h2 className="text-2xl font-black">{tournamentManagers.length}</h2>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-primary/5 border-primary/20">
+            <CardContent className="p-6 flex items-center gap-4">
+              <div className="p-3 bg-primary/20 rounded-full text-primary">
+                <Shield className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Super Admins</p>
+                <h2 className="text-2xl font-black text-primary">{superAdmins.length}</h2>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Tab Navigation */}
       <div className="flex border-b border-white/10">
-        <button 
-          onClick={() => setActiveTab("users")} 
-          className={`px-4 py-3 font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'users' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-white'}`}
-        >
-          <Users className="w-4 h-4" /> Users
-        </button>
+        {isSuperAdmin && (
+          <button 
+            onClick={() => setActiveTab("users")} 
+            className={`px-4 py-3 font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'users' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-white'}`}
+          >
+            <Users className="w-4 h-4" /> Users
+          </button>
+        )}
         <button 
           onClick={() => setActiveTab("tournaments")} 
           className={`px-4 py-3 font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'tournaments' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-white'}`}
@@ -233,6 +256,7 @@ export default function SuperAdmin() {
                       <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-sm ${
                         user.role === 'super_admin' ? 'bg-primary/20 text-primary' :
                         user.role === 'admin' ? 'bg-emerald-500/20 text-emerald-400' :
+                        user.role === 'tournament_manager' ? 'bg-blue-500/20 text-blue-400' :
                         user.role === 'declined' ? 'bg-red-500/20 text-red-400' :
                         'bg-amber-500/20 text-amber-500'
                       }`}>
@@ -244,6 +268,7 @@ export default function SuperAdmin() {
                   {user.role === 'pending' && (
                     <div className="flex gap-2">
                       <Button onClick={() => updateUserRole(user.id, 'admin')} className="bg-emerald-500 hover:bg-emerald-600 text-white">Approve as Admin</Button>
+                      <Button onClick={() => updateUserRole(user.id, 'tournament_manager')} className="bg-blue-500 hover:bg-blue-600 text-white">Approve as Manager</Button>
                       <Button onClick={() => updateUserRole(user.id, 'declined')} variant="destructive">Decline</Button>
                     </div>
                   )}
@@ -272,7 +297,7 @@ export default function SuperAdmin() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {tournaments.map(t => {
+              {(isSuperAdmin ? tournaments : tournaments.filter(t => t.user_id === currentUserId)).map(t => {
                 const creator = getUserEmail(t.user_id);
                 const assigned = tournamentAdmins.filter(ta => ta.tournament_id === t.id);
 
@@ -305,9 +330,9 @@ export default function SuperAdmin() {
                       
                       <div className="flex gap-2">
                         <select id={`assign-${t.id}`} className="bg-[#0f1423] border border-white/10 rounded-md text-sm px-3 py-1 flex-1 text-white">
-                          <option value="">Select an Admin...</option>
-                          {adminUsers.filter(u => u.id !== t.user_id).map(u => (
-                            <option key={u.id} value={u.id}>{u.email}</option>
+                          <option value="">Select an Admin or Manager...</option>
+                          {users.filter(u => (u.role === 'admin' || u.role === 'tournament_manager') && u.id !== t.user_id).map(u => (
+                            <option key={u.id} value={u.id}>{u.email} ({u.role === 'tournament_manager' ? 'Manager' : 'Admin'})</option>
                           ))}
                         </select>
                         <Button 
@@ -341,10 +366,10 @@ export default function SuperAdmin() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {auditLogs.length === 0 ? (
+              {auditLogs.length === 0 || (!isSuperAdmin && auditLogs.filter(log => log.user_id === currentUserId).length === 0) ? (
                 <p className="text-muted-foreground text-center py-4">No audit logs found.</p>
               ) : (
-                auditLogs.map(log => (
+                (isSuperAdmin ? auditLogs : auditLogs.filter(log => log.user_id === currentUserId)).map(log => (
                   <div key={log.id} className="p-3 rounded-lg bg-white/[0.01] border border-white/5 text-sm">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>

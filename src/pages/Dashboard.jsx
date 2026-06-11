@@ -111,42 +111,44 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 animate-in fade-in">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-black text-primary flex items-center gap-3">
-          <Trophy className="w-8 h-8" /> {userRole === 'super_admin' ? 'All Tournaments (Super Admin)' : 'My Tournaments'}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <h1 className="text-2xl sm:text-3xl font-black text-primary flex items-center gap-3">
+          <Trophy className="w-6 h-6 sm:w-8 sm:h-8" /> {userRole === 'super_admin' ? 'All Tournaments (Super Admin)' : 'My Tournaments'}
         </h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {userRole === 'super_admin' && (
-            <Button variant="outline" onClick={() => navigate("/super-admin")} className="border-primary/50 text-primary hover:bg-primary/10">
+            <Button variant="outline" onClick={() => navigate("/super-admin")} className="border-primary/50 text-primary hover:bg-primary/10 whitespace-nowrap text-xs sm:text-sm px-3">
               Super Admin Panel
             </Button>
           )}
-          <Button variant="outline" onClick={handleLogout} className="border-white/10 hover:bg-white/5">
+          <Button variant="outline" onClick={handleLogout} className="border-white/10 hover:bg-white/5 whitespace-nowrap text-xs sm:text-sm px-3">
             <LogOut className="w-4 h-4 mr-2" /> Logout
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="md:col-span-1 border-primary/20 bg-primary/5">
-          <CardHeader>
-            <CardTitle>Create Tournament</CardTitle>
-            <CardDescription>Start a new 4-team league</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleCreateTournament} className="space-y-4">
-              <Input 
-                placeholder="Tournament Name" 
-                value={newTournamentName}
-                onChange={e => setNewTournamentName(e.target.value)}
-                className="bg-background/50 border-white/10"
-              />
-              <Button type="submit" className="w-full">
-                <Plus className="w-4 h-4 mr-2" /> Create New
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+        {userRole !== 'tournament_manager' && (
+          <Card className="md:col-span-1 border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle>Create Tournament</CardTitle>
+              <CardDescription>Start a new 4-team league</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleCreateTournament} className="space-y-4">
+                <Input 
+                  placeholder="Tournament Name" 
+                  value={newTournamentName}
+                  onChange={e => setNewTournamentName(e.target.value)}
+                  className="bg-background/50 border-white/10"
+                />
+                <Button type="submit" className="w-full">
+                  <Plus className="w-4 h-4 mr-2" /> Create New
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="md:col-span-2 space-y-4">
           <h2 className="text-xl font-bold">Your Leagues</h2>
