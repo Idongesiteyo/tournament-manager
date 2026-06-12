@@ -26,7 +26,7 @@ export default function Teams() {
     loadData();
 
     const channel = supabase.channel(`public_teams_${tournamentId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams', filter: `tournament_id=eq.${tournamentId}` }, loadData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, loadData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, loadData) // would need complex filtering or just reload
       .subscribe();
 

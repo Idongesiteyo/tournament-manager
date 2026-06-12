@@ -131,11 +131,12 @@ export default function AdminTeam() {
   }, [teamId]);
 
   const updateFormation = async (formation) => {
+    setTeam({ ...team, formation }); // Optimistic update
     const { error } = await supabase.from("teams").update({ formation }).eq("id", teamId);
     if (error) {
       toast.error("Failed to update formation. Have you run the SQL script?");
     } else {
-      toast.success("Formation updated");
+      toast.success("Formation updated to " + formation);
     }
   };
 
