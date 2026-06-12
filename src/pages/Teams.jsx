@@ -50,22 +50,33 @@ export default function Teams() {
           
           return (
             <Link key={team.id} to={`/t/${tournamentId}/team/${team.id}`} className="block group">
-              <Card className="bg-[#0f1423] border-white/5 hover:border-primary/50 transition-colors h-full">
-                <CardHeader className="pb-4">
-                  <div className="flex items-center gap-3">
+              <Card className="bg-[#0f1423] border-white/5 hover:border-primary/50 transition-colors h-full overflow-hidden flex flex-col">
+                <div className="relative w-full aspect-[16/7]">
+                  {team.team_picture_url ? (
+                    <img 
+                      src={team.team_picture_url} 
+                      alt={team.name} 
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 w-full h-full bg-slate-800/50" />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0f1423] via-[#0f1423]/60 to-transparent" />
+                  
+                  <div className="absolute bottom-4 left-4 right-4 flex items-end gap-3 z-10">
                     <div 
-                      className="w-10 h-10 rounded-full flex items-center justify-center font-black text-sm shadow-lg border border-white/10"
-                      style={{ backgroundColor: team.color, color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}
+                      className="w-12 h-12 shrink-0 rounded-xl flex items-center justify-center font-black text-sm shadow-xl border-2 border-white/10"
+                      style={{ backgroundColor: team.color || '#475569', color: '#fff' }}
                     >
-                      {team.short_name}
+                      {team.short_name?.slice(0, 3).toUpperCase()}
                     </div>
-                    <div>
-                      <CardTitle className="text-lg text-white group-hover:text-primary transition-colors">{team.name}</CardTitle>
-                      <CardDescription>Formation: {team.formation || "3-3-1"}</CardDescription>
+                    <div className="mb-1">
+                      <CardTitle className="text-xl text-white font-black group-hover:text-primary transition-colors tracking-tight line-clamp-1">{team.name}</CardTitle>
+                      <p className="text-xs text-slate-300 font-medium">Formation: {team.formation || "3-3-1"}</p>
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent>
+                </div>
+                <CardContent className="pt-6 flex-1">
                   <FormationPitch 
                     teamColor={team.color} 
                     formation={team.formation || "3-3-1"} 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, UserPlus, Trash2, Check, X, Shield, Users, Edit2, Save } from "lucide-react";
+import { ArrowLeft, UserPlus, Trash2, Check, X, Shield, Users, Edit2, Save, Camera, Loader2, Upload } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import UnauthorizedAccess from "../components/ui/UnauthorizedAccess";
 
 const VALID_FORMATIONS = ["3-3-1", "3-2-2", "2-3-2", "2-4-1", "4-2-1"];
+
+import { compressImageToWebp } from "../lib/imageUtils";
 
 export default function AdminTeam() {
   const { tournamentId, teamId } = useParams();
@@ -24,6 +26,48 @@ export default function AdminTeam() {
 
   const [editingPlayerId, setEditingPlayerId] = useState(null);
   const [editData, setEditData] = useState({ name: "", jersey_number: "", position: "" });
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingImage(true);
+      toast.info("Preparing image...");
+
+      const processedFile = await compressImageToWebp(file, 1);
+      const fileName = `${teamId}-${Date.now()}.webp`;
+
+      toast.info("Uploading picture to storage...");
+
+      const { error: uploadError } = await supabase.storage
+        .from('team_pictures')
+        .upload(fileName, processedFile, { upsert: true, contentType: 'image/webp' });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('team_pictures')
+        .getPublicUrl(fileName);
+
+      const { error: updateError } = await supabase
+        .from('teams')
+        .update({ team_picture_url: publicUrl })
+        .eq('id', teamId);
+
+      if (updateError) throw updateError;
+
+      toast.success("Team picture updated successfully!");
+      setTeam({ ...team, team_picture_url: publicUrl });
+
+    } catch (err) {
+      console.error(err);
+      toast.error("Error uploading picture: " + err.message);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -211,6 +255,40 @@ export default function AdminTeam() {
             </CardContent>
           </Card>
           
+          <Card className="bg-[#0f1423] border-white/5">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                <Camera className="w-5 h-5 text-blue-400" /> Team Picture
+              </CardTitle>
+              <CardDescription>Upload a cinematic banner</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {team.team_picture_url && (
+                  <div className="w-full aspect-[16/7] rounded-md overflow-hidden border border-white/10">
+                    <img src={team.team_picture_url} alt="Team" className="w-full h-full object-cover" />
+                  </div>
+                )}
+                <div className="relative">
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    disabled={uploadingImage}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                  />
+                  <Button variant="outline" className="w-full bg-black/20 border-white/10 pointer-events-none" disabled={uploadingImage}>
+                    {uploadingImage ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading...</>
+                    ) : (
+                      <><Upload className="w-4 h-4 mr-2" /> {team.team_picture_url ? "Change Picture" : "Upload Picture"}</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card className="bg-[#0f1423] border-white/5">
             <CardHeader>
               <CardTitle className="text-white flex items-center gap-2">

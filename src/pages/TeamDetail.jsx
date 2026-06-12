@@ -67,35 +67,51 @@ export default function TeamDetail() {
 
   return (
     <div className="space-y-8 animate-in fade-in">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild className="hover:bg-white/5">
-          <Link to={`/t/${tournamentId}`}><ArrowLeft className="w-5 h-5" /></Link>
-        </Button>
-        <div 
-          className="w-12 h-12 rounded-xl shadow-lg border border-white/10 flex items-center justify-center font-black text-xl"
-          style={{ backgroundColor: team.color, color: '#fff', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}
-        >
-          {team.short_name}
+      <div className="relative w-full aspect-[16/7] rounded-2xl overflow-hidden border border-white/5 mb-8 flex flex-col justify-end shadow-2xl">
+        {team.team_picture_url ? (
+          <img 
+            src={team.team_picture_url} 
+            alt={team.name} 
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 w-full h-full bg-slate-800/30" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#09090b] via-[#09090b]/60 to-transparent" />
+        
+        <div className="absolute top-4 left-4 z-10">
+          <Button variant="outline" size="icon" asChild className="bg-black/40 border-white/10 hover:bg-white/20 backdrop-blur-md">
+            <Link to={`/t/${tournamentId}`}><ArrowLeft className="w-5 h-5 text-white" /></Link>
+          </Button>
         </div>
-        <div>
-          <h1 className="text-3xl font-black">{team.name}</h1>
-          <div className="flex items-center gap-4 mt-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Recent Form:</span>
-              <div className="flex gap-1">
-                {form.length === 0 ? <span className="text-xs text-muted-foreground">No matches</span> : 
-                  form.map((res, i) => (
-                    <span key={i} className={`w-4 h-4 rounded-sm text-[9px] font-bold flex items-center justify-center text-white ${formStyle[res]}`}>{res}</span>
-                  ))
-                }
+
+        <div className="relative z-10 p-6 md:p-8 flex items-end gap-5">
+          <div 
+            className="w-16 h-16 md:w-20 md:h-20 shrink-0 rounded-2xl shadow-2xl border-2 border-white/20 flex items-center justify-center font-black text-2xl md:text-3xl"
+            style={{ backgroundColor: team.color || '#475569', color: '#fff', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}
+          >
+            {team.short_name?.slice(0, 3).toUpperCase()}
+          </div>
+          <div>
+            <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight">{team.name}</h1>
+            <div className="flex flex-wrap items-center gap-4 mt-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-slate-300">Form:</span>
+                <div className="flex gap-1">
+                  {form.length === 0 ? <span className="text-xs text-slate-400">No matches</span> : 
+                    form.map((res, i) => (
+                      <span key={i} className={`w-5 h-5 rounded-sm text-[10px] font-bold flex items-center justify-center text-white shadow-md ${formStyle[res]}`}>{res}</span>
+                    ))
+                  }
+                </div>
               </div>
+              {team.formation && (
+                <div className="flex items-center gap-2 border-l border-white/20 pl-4">
+                  <span className="text-sm font-bold text-slate-300">Formation:</span>
+                  <span className="text-sm font-black text-[#fbbf24] bg-[#fbbf24]/10 px-2 py-0.5 rounded border border-[#fbbf24]/30 backdrop-blur-sm">{team.formation}</span>
+                </div>
+              )}
             </div>
-            {team.formation && (
-              <div className="flex items-center gap-2 border-l border-white/10 pl-4">
-                <span className="text-sm font-medium text-muted-foreground">Formation:</span>
-                <span className="text-sm font-black text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">{team.formation}</span>
-              </div>
-            )}
           </div>
         </div>
       </div>
