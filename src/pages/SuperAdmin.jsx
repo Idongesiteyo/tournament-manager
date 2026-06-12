@@ -331,7 +331,7 @@ export default function SuperAdmin() {
                       <div className="flex gap-2">
                         <select id={`assign-${t.id}`} className="bg-[#0f1423] border border-white/10 rounded-md text-sm px-3 py-1 flex-1 text-white">
                           <option value="">Select an Admin or Manager...</option>
-                          {users.filter(u => (u.role === 'admin' || u.role === 'tournament_manager') && u.id !== t.user_id).map(u => (
+                          {users.filter(u => (isSuperAdmin ? (u.role === 'admin' || u.role === 'tournament_manager') : u.role === 'tournament_manager') && u.id !== t.user_id).map(u => (
                             <option key={u.id} value={u.id}>{u.email} ({u.role === 'tournament_manager' ? 'Manager' : 'Admin'})</option>
                           ))}
                         </select>
@@ -366,10 +366,10 @@ export default function SuperAdmin() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {auditLogs.length === 0 || (!isSuperAdmin && auditLogs.filter(log => log.user_id === currentUserId).length === 0) ? (
+              {auditLogs.length === 0 ? (
                 <p className="text-muted-foreground text-center py-4">No audit logs found.</p>
               ) : (
-                (isSuperAdmin ? auditLogs : auditLogs.filter(log => log.user_id === currentUserId)).map(log => (
+                auditLogs.map(log => (
                   <div key={log.id} className="p-3 rounded-lg bg-white/[0.01] border border-white/5 text-sm">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>

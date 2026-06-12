@@ -65,6 +65,8 @@ export default function Layout() {
 
   if (userRole === "super_admin") {
     adminNavItems.push({ label: "Super Admin", path: `/super-admin`, icon: ShieldAlert });
+  } else if (userRole === "admin") {
+    adminNavItems.push({ label: "Admin Panel", path: `/super-admin`, icon: ShieldAlert });
   }
 
   const isDashboard = pathname.startsWith("/dashboard") || pathname.startsWith("/super-admin");

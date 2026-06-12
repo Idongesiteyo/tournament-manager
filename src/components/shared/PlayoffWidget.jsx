@@ -1,4 +1,4 @@
-import { Lock, Trophy } from "lucide-react";
+import { Lock, Trophy, Swords } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { TeamColorBadge } from "./TeamColorBadge";
 
@@ -58,43 +58,46 @@ export function PlayoffWidget({ isComplete, matches, teams, settings }) {
     const isCompleted = finalMatch.status === "completed";
 
     return (
-      <Card className="mb-6 border-primary/50 bg-gradient-to-br from-card via-card to-primary/10 overflow-hidden relative">
+      <Card className="mb-6 border-[#fbbf24]/30 bg-[#0f1423] overflow-hidden relative shadow-[0_0_15px_rgba(251,191,36,0.1)]">
         {isCompleted && (
           <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-4 py-1 text-xs font-bold rounded-bl-lg flex items-center gap-1">
             <Trophy className="w-3 h-3" /> CHAMPION CROWNED
           </div>
         )}
-        <CardHeader className="pb-2 pt-6">
-          <CardTitle className="text-center text-primary font-black uppercase tracking-widest text-lg">
-            Championship Final
+        <CardHeader className="pb-3 pt-4 border-b border-white/5">
+          <CardTitle className="text-center text-[#fbbf24] font-black tracking-wide text-lg flex items-center justify-center gap-2">
+            <Trophy className="w-5 h-5" /> Championship Final
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between mt-4">
-            <div className="flex flex-col items-center gap-2 w-1/3">
-              <TeamColorBadge team={homeTeam} className="w-16 h-16 text-2xl shadow-lg" />
-              <span className="font-bold text-center text-sm">{homeTeam?.name}</span>
+        <CardContent className="pt-8 pb-10">
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col items-center gap-4 w-1/3">
+              <TeamColorBadge team={homeTeam} className="w-24 h-24 text-3xl shadow-lg rounded-2xl" />
+              <span className="font-bold text-center text-white">{homeTeam?.name}</span>
             </div>
             
             <div className="w-1/3 flex flex-col items-center justify-center">
               {isCompleted ? (
-                <div className="flex items-center justify-center gap-3 text-4xl font-black">
-                  <span className={finalMatch.home_score > finalMatch.away_score ? "text-primary" : "text-muted-foreground"}>
+                <div className="flex items-center justify-center gap-3 text-5xl font-black">
+                  <span className={finalMatch.home_score > finalMatch.away_score ? "text-white" : "text-white/50"}>
                     {finalMatch.home_score}
                   </span>
-                  <span className="text-muted-foreground text-2xl">-</span>
-                  <span className={finalMatch.away_score > finalMatch.home_score ? "text-primary" : "text-muted-foreground"}>
+                  <span className="text-white/30 text-3xl">-</span>
+                  <span className={finalMatch.away_score > finalMatch.home_score ? "text-white" : "text-white/50"}>
                     {finalMatch.away_score}
                   </span>
                 </div>
               ) : (
-                <span className="text-2xl font-bold text-muted-foreground">VS</span>
+                <div className="flex flex-col items-center gap-2">
+                  <Swords className="w-8 h-8 text-[#fbbf24]/80" />
+                  <span className="text-xs font-bold text-slate-400 tracking-widest uppercase">Upcoming</span>
+                </div>
               )}
             </div>
 
-            <div className="flex flex-col items-center gap-2 w-1/3">
-              <TeamColorBadge team={awayTeam} className="w-16 h-16 text-2xl shadow-lg" />
-              <span className="font-bold text-center text-sm">{awayTeam?.name}</span>
+            <div className="flex flex-col items-center gap-4 w-1/3">
+              <TeamColorBadge team={awayTeam} className="w-24 h-24 text-3xl shadow-lg rounded-2xl" />
+              <span className="font-bold text-center text-white">{awayTeam?.name}</span>
             </div>
           </div>
         </CardContent>

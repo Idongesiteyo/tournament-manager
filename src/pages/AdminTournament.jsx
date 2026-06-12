@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { Save, Settings, Trash2, CalendarPlus, Check, X, ArrowLeft, ShieldAlert, ImagePlus, Edit2, UserCog, Info, RotateCcw } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { generateSchedule, isSeasonComplete } from "../lib/logic";
+import { generateSchedule, isSeasonComplete, computeStandings } from "../lib/logic";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -242,8 +242,17 @@ export default function AdminTournament() {
       return;
     }
     
+    const match = matches.find(m => m.id === matchId);
     setEditingMatch(null);
     toast.success("Match saved successfully!");
+    if (match.stage === 'final') {
+      const hScore = parseInt(editScores.home, 10);
+      const aScore = parseInt(editScores.away, 10);
+      if (!isNaN(hScore) && !isNaN(aScore) && hScore !== aScore) {
+        const winnerId = hScore > aScore ? match.home_team_id : match.away_team_id;
+        await supabase.from("tournaments").update({ champion_team_id: winnerId }).eq("id", tournamentId);
+      }
+    }
   };
 
   const updateMatchStatus = async (matchId, status, extraFields = {}) => {
@@ -252,6 +261,16 @@ export default function AdminTournament() {
       toast.error("Failed to update status: " + error.message);
     } else {
       toast.success("Match status updated to " + status);
+      
+      const match = matches.find(m => m.id === matchId);
+      if (status === 'completed' && match?.stage === 'final') {
+        const hScore = match.home_score ?? 0;
+        const aScore = match.away_score ?? 0;
+        if (hScore !== aScore) {
+          const winnerId = hScore > aScore ? match.home_team_id : match.away_team_id;
+          await supabase.from("tournaments").update({ champion_team_id: winnerId }).eq("id", tournamentId);
+        }
+      }
     }
   };
 
@@ -278,7 +297,7 @@ export default function AdminTournament() {
 
   const generateFinal = async () => {
     if (teams.length < 2) return;
-    const standings = require('../lib/logic').computeStandings(teams, matches);
+    const standings = computeStandings(teams, matches);
     if(standings.length < 2) return;
     
     await supabase.from("matches").insert([{
@@ -443,68 +462,28 @@ export default function AdminTournament() {
               </div>
             )}
             {finalMatch && (
-              <div className="space-y-4 border border-primary/30 p-4 rounded-xl bg-primary/5">
-                <div className="flex items-center justify-between">
-                  <div className="flex flex-col items-center">
-                    <span className="text-xs font-bold mb-1">Home</span>
-                    <Input 
-                      type="number" 
-                      className="w-16 h-10 text-center font-bold text-lg" 
-                      value={finalMatch.status === "completed" ? finalMatch.home_score : finalScores.home}
-                      onChange={(e) => setFinalScores({...finalScores, home: e.target.value})}
-                      disabled={finalMatch.status === "completed"}
-                    />
-                  </div>
-                  <span className="font-black text-muted-foreground">VS</span>
-                  <div className="flex flex-col items-center">
-                    <span className="text-xs font-bold mb-1">Away</span>
-                    <Input 
-                      type="number" 
-                      className="w-16 h-10 text-center font-bold text-lg" 
-                      value={finalMatch.status === "completed" ? finalMatch.away_score : finalScores.away}
-                      onChange={(e) => setFinalScores({...finalScores, away: e.target.value})}
-                      disabled={finalMatch.status === "completed"}
-                    />
-                  </div>
-                </div>
-
-                {finalMatch.status !== "completed" ? (
-                  <>
-                    {finalScores.home !== "" && finalScores.away !== "" && finalScores.home === finalScores.away && (
-                      <div className="space-y-2 pt-2 border-t border-primary/20">
-                        <label className="text-xs font-bold text-amber-500 block">Match is a draw. Select Winner (Penalties):</label>
-                        <select 
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                          value={manualWinnerOverride}
-                          onChange={(e) => setManualWinnerOverride(e.target.value)}
-                        >
-                          <option value="">-- Select Winner --</option>
-                          <option value={finalMatch.home_team_id}>{teams.find(t=>t.id===finalMatch.home_team_id)?.name}</option>
-                          <option value={finalMatch.away_team_id}>{teams.find(t=>t.id===finalMatch.away_team_id)?.name}</option>
-                        </select>
-                      </div>
-                    )}
-                    <Button 
-                      className="w-full" 
-                      onClick={() => saveFinalScore(finalMatch.id, finalMatch.home_team_id, finalMatch.away_team_id)}
-                      disabled={finalScores.home === finalScores.away && !manualWinnerOverride}
-                    >
-                      Save Final Result & Crown Champion
-                    </Button>
-                  </>
-                ) : (
-                  <div className="space-y-3 pt-2">
+              <div className="space-y-4 p-4 rounded-xl bg-primary/5 border border-primary/20">
+                <p className="text-sm text-center text-muted-foreground">
+                  The Championship Final has been added to the matches list below. Manage it like a regular fixture.
+                </p>
+                {finalMatch.status === "completed" && (
+                  <div className="space-y-3 pt-2 border-t border-primary/20">
                     <div className="text-center text-primary font-bold text-sm tracking-widest uppercase">
                       Champion Crowned
                     </div>
+                    {finalMatch.home_score === finalMatch.away_score && !settings?.champion_team_id && (
+                       <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded text-amber-500 text-sm text-center font-bold">
+                         Match ended in a draw. Please select the winner below (e.g., after penalties).
+                       </div>
+                    )}
                     <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground block text-center">Override Champion (if needed)</label>
+                      <label className="text-xs text-muted-foreground block text-center">Set / Override Champion</label>
                       <select 
                         className="flex h-9 w-full rounded-md border border-input bg-background/50 px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                         value={settings?.champion_team_id || ""}
                         onChange={(e) => setManualChampion(e.target.value)}
                       >
-                        <option value="">-- Select --</option>
+                        <option value="">-- Select Champion --</option>
                         {teams.map(t => (
                           <option key={t.id} value={t.id}>{t.name}</option>
                         ))}
@@ -648,7 +627,7 @@ export default function AdminTournament() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {regularMatches.sort((a,b) => a.matchday - b.matchday).map(match => {
+              {matches.sort((a,b) => a.matchday - b.matchday).map(match => {
                 const home = getTeam(match.home_team_id);
                 const away = getTeam(match.away_team_id);
                 const isEditing = editingMatch?.id === match.id;
@@ -657,7 +636,7 @@ export default function AdminTournament() {
                   <div key={match.id} className={`flex flex-col sm:flex-row items-center justify-between p-3 rounded-xl border gap-4 transition-colors ${isEditing ? "bg-white/5 border-primary/30" : "bg-white/[0.02] border-white/5"}`}>
                     <div className="flex flex-col items-center sm:items-start w-full sm:w-auto">
                       <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                        MD {match.matchday}
+                        {match.stage === 'final' ? 'FINAL' : `MD ${match.matchday}`}
                       </div>
                       {!isEditing && match.match_date && (
                         <div className="text-xs text-primary/80 font-medium">
