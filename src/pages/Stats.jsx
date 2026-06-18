@@ -389,7 +389,7 @@ export default function Stats() {
               <p className="text-sm text-slate-500 text-center py-4">No stats available yet.</p>
             ) : (
               <div className="space-y-4">
-                {topScorers.slice(0, 10).map((p, idx) => (
+                {topScorers.map((p, idx) => (
                   <div key={idx} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <span className="w-5 text-center text-slate-500 font-bold text-sm">{idx + 1}</span>
@@ -422,7 +422,7 @@ export default function Stats() {
               <p className="text-sm text-slate-500 text-center py-4">No stats available yet.</p>
             ) : (
               <div className="space-y-4">
-                {topAssists.slice(0, 10).map((p, idx) => (
+                {topAssists.map((p, idx) => (
                   <div key={idx} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <span className="w-5 text-center text-slate-500 font-bold text-sm">{idx + 1}</span>
@@ -455,7 +455,7 @@ export default function Stats() {
               <p className="text-sm text-slate-500 text-center py-4">No stats available yet.</p>
             ) : (
               <div className="space-y-4">
-                {topCards.slice(0, 10).map((p, idx) => (
+                {topCards.map((p, idx) => (
                   <div key={idx} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <span className="w-5 text-center text-slate-500 font-bold text-sm">{idx + 1}</span>
