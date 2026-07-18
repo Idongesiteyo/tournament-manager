@@ -103,11 +103,11 @@ export default function PublicMatchDetailModal({ isOpen, onClose, match, homeTea
             <div className="space-y-6">
               
               {/* GOALS */}
-              {info.goals.length > 0 && (
+              {info.goals.filter(g => !g.is_penalty_shootout).length > 0 && (
                 <div className="space-y-3">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400 border-b border-white/5 pb-1">⚽ Goals</h3>
                   <div className="space-y-2">
-                    {info.goals.map(g => (
+                    {info.goals.filter(g => !g.is_penalty_shootout).map(g => (
                       <div key={g.id} className="flex items-center gap-3 text-sm">
                         <span className="text-emerald-500/80 font-bold w-6 text-right">{g.minute ? `${g.minute}'` : ''}</span>
                         <span className="text-white font-medium">{g.player_name}</span>
@@ -162,6 +162,22 @@ export default function PublicMatchDetailModal({ isOpen, onClose, match, homeTea
                         <span className="text-red-500/80 font-bold w-6 text-right">{c.minute ? `${c.minute}'` : ''}</span>
                         <span className="text-white font-medium">{c.player_name}</span>
                         <span className="text-slate-500 text-xs">({c.team_name})</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* PENALTY SHOOTOUT */}
+              {info.goals.filter(g => g.is_penalty_shootout).length > 0 && (
+                <div className="space-y-3 mt-6">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-orange-400 border-b border-white/5 pb-1">🎯 Penalty Shootout</h3>
+                  <div className="space-y-2">
+                    {info.goals.filter(g => g.is_penalty_shootout).map(g => (
+                      <div key={g.id} className={`flex items-center gap-3 text-sm ${g.shootout_result === 'missed' ? 'opacity-50' : ''}`}>
+                        <span className="text-orange-500/80 font-bold w-6 text-right">{g.shootout_result === 'scored' ? '⚽' : '❌'}</span>
+                        <span className={`font-medium ${g.shootout_result === 'missed' ? 'line-through text-slate-500' : 'text-white'}`}>{g.player_name}</span>
+                        <span className="text-slate-500 text-xs">({g.team_name})</span>
                       </div>
                     ))}
                   </div>

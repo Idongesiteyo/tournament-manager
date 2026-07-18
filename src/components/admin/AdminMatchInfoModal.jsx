@@ -53,7 +53,7 @@ const PlayerAutocomplete = ({ value, onChange, onSelectTeam, teamPlayers, placeh
   );
 };
 
-export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam, awayTeam, onSaveSuccess }) {
+export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam, awayTeam, onSaveSuccess, stage, status }) {
   const [info, setInfo] = useState({
     goals: [],
     assists: [],
@@ -70,6 +70,7 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
   const [assistForm, setAssistForm] = useState({ player_name: "", team_name: homeTeam?.name || "", minute: "" });
   const [yellowForm, setYellowForm] = useState({ player_name: "", team_name: homeTeam?.name || "", minute: "" });
   const [redForm, setRedForm] = useState({ player_name: "", team_name: homeTeam?.name || "", minute: "" });
+  const [penaltyShootoutForm, setPenaltyShootoutForm] = useState({ player_name: "", team_name: homeTeam?.name || "", is_penalty_shootout: true, shootout_result: "scored" });
 
   useEffect(() => {
     if (!isOpen || !matchId) return;
@@ -121,12 +122,16 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
     if (!error) {
       // Automatically update the match scoreline based on the goals array
       const homeGoalsCount = info.goals.filter(g => 
-        (g.team_name === homeTeam?.name && !g.is_own_goal) ||
-        (g.team_name === awayTeam?.name && g.is_own_goal)
+        !g.is_penalty_shootout && (
+          (g.team_name === homeTeam?.name && !g.is_own_goal) ||
+          (g.team_name === awayTeam?.name && g.is_own_goal)
+        )
       ).length;
       const awayGoalsCount = info.goals.filter(g => 
-        (g.team_name === awayTeam?.name && !g.is_own_goal) ||
-        (g.team_name === homeTeam?.name && g.is_own_goal)
+        !g.is_penalty_shootout && (
+          (g.team_name === awayTeam?.name && !g.is_own_goal) ||
+          (g.team_name === homeTeam?.name && g.is_own_goal)
+        )
       ).length;
       
       await supabase.from("matches").update({
@@ -168,8 +173,15 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
       setInfo(prev => ({ ...prev, [type]: [...prev[type], newEvent] }));
     }
     
-    if (type === 'goals') setFormState({ player_name: "", team_name: defaultTeam, minute: "", is_penalty: false, is_own_goal: false });
-    else setFormState({ player_name: "", team_name: defaultTeam, minute: "" });
+    if (formState.is_penalty_shootout) {
+      setFormState({ player_name: "", team_name: defaultTeam, is_penalty_shootout: true, shootout_result: "scored" });
+    } else if (type === 'goals') {
+      setFormState({ player_name: "", team_name: defaultTeam, minute: "", is_penalty: false, is_own_goal: false });
+    } else if (type === 'penalty_shootout') {
+      setFormState({ player_name: "", team_name: defaultTeam, is_penalty_shootout: true, shootout_result: "scored" });
+    } else {
+      setFormState({ player_name: "", team_name: defaultTeam, minute: "" });
+    }
   };
 
   const startEditEvent = (type, event, setFormState) => {
@@ -179,7 +191,9 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
       team_name: event.team_name,
       minute: event.minute || "",
       is_penalty: event.is_penalty || false,
-      is_own_goal: event.is_own_goal || false
+      is_own_goal: event.is_own_goal || false,
+      is_penalty_shootout: event.is_penalty_shootout || false,
+      shootout_result: event.shootout_result || "scored"
     });
   };
 
@@ -429,6 +443,64 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                   </div>
                 ))}
               </section>
+
+              {/* PENALTY SHOOTOUT (ONLY FOR FINALS IF SCORE IS TIED, OR IF ALREADY HAS PENALTIES) */}
+              {(stage === 'final' || info.goals.some(g => g.is_penalty_shootout)) && (
+                <section className="space-y-4">
+                  <h3 className="font-bold text-orange-400 text-lg border-b border-white/5 pb-2">Penalty Shootout</h3>
+                  <div className="flex flex-wrap gap-3 items-end bg-black/20 p-4 rounded-lg border border-white/5">
+                    <div className="flex-1 min-w-[150px]">
+                      <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Player</label>
+                      <PlayerAutocomplete 
+                        placeholder="Type player name..."
+                        value={penaltyShootoutForm.player_name}
+                        onChange={val => setPenaltyShootoutForm({...penaltyShootoutForm, player_name: val})}
+                        onSelectTeam={team => setPenaltyShootoutForm(prev => ({...prev, team_name: team}))}
+                        teamPlayers={teamPlayers}
+                        homeTeam={homeTeam}
+                        awayTeam={awayTeam}
+                      />
+                    </div>
+                    <div className="w-32">
+                      <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Team</label>
+                      <select className="w-full h-9 rounded-md border border-white/10 bg-black/40 px-2 text-sm text-white" value={penaltyShootoutForm.team_name} onChange={e => setPenaltyShootoutForm({...penaltyShootoutForm, team_name: e.target.value})}>
+                        <option value={homeTeam?.name}>{homeTeam?.short_name}</option>
+                        <option value={awayTeam?.name}>{awayTeam?.short_name}</option>
+                      </select>
+                    </div>
+                    <div className="w-24">
+                      <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Result</label>
+                      <select className="w-full h-9 rounded-md border border-white/10 bg-black/40 px-2 text-sm text-white" value={penaltyShootoutForm.shootout_result} onChange={e => setPenaltyShootoutForm({...penaltyShootoutForm, shootout_result: e.target.value})}>
+                        <option value="scored">Scored</option>
+                        <option value="missed">Missed</option>
+                      </select>
+                    </div>
+                    <Button 
+                      onClick={() => addEvent("goals", penaltyShootoutForm, setPenaltyShootoutForm, homeTeam?.name)} 
+                      size="sm" 
+                      className={`h-9 ${editingEvent?.type === 'penalty_shootout' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                    >
+                      {editingEvent?.type === 'penalty_shootout' ? 'Update' : <><Plus className="w-4 h-4 mr-1" /> Add</>}
+                    </Button>
+                    {editingEvent?.type === 'penalty_shootout' && (
+                      <Button variant="ghost" size="sm" onClick={() => { setEditingEvent(null); setPenaltyShootoutForm({ player_name: "", team_name: homeTeam?.name, is_penalty_shootout: true, shootout_result: "scored" }); }} className="h-9">Cancel</Button>
+                    )}
+                  </div>
+                  {info.goals.filter(g => g.is_penalty_shootout).map(g => (
+                    <div key={g.id} className={`flex items-center justify-between bg-white/[0.02] p-2 rounded border border-white/5 text-sm ${g.shootout_result === 'missed' ? 'opacity-50' : ''}`}>
+                      <div className="flex items-center gap-3">
+                        <span className="text-slate-400 w-8">{g.shootout_result === 'scored' ? '⚽' : '❌'}</span>
+                        <span className={`font-bold ${g.shootout_result === 'missed' ? 'line-through text-slate-500' : 'text-white'}`}>{g.player_name}</span>
+                        <span className="text-slate-500 text-xs">({g.team_name})</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => startEditEvent("penalty_shootout", g, setPenaltyShootoutForm)} className="h-6 w-6 text-slate-500 hover:text-blue-400">✏️</Button>
+                        <Button variant="ghost" size="icon" onClick={() => removeEvent("goals", g.id)} className="h-6 w-6 text-slate-500 hover:text-red-400"><Trash2 className="w-3 h-3" /></Button>
+                      </div>
+                    </div>
+                  ))}
+                </section>
+              )}
             </>
           )}
         </div>

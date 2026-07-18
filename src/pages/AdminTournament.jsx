@@ -742,7 +742,7 @@ export default function AdminTournament() {
                             variant="outline" 
                             size="sm" 
                             className="border-white/10 text-blue-400 hover:text-blue-300 hover:bg-blue-400/10"
-                            onClick={() => setInfoMatch({ matchId: match.id, homeTeam: home, awayTeam: away })}
+                            onClick={() => setInfoMatch({ matchId: match.id, homeTeam: home, awayTeam: away, stage: match.stage, status: match.status })}
                           >
                             <Info className="w-4 h-4 mr-1" /> Info
                           </Button>
@@ -841,6 +841,8 @@ export default function AdminTournament() {
           matchId={infoMatch.matchId}
           homeTeam={infoMatch.homeTeam}
           awayTeam={infoMatch.awayTeam}
+          stage={infoMatch.stage}
+          status={infoMatch.status}
           onSaveSuccess={(mId, hScore, aScore) => {
             setMatches(prev => prev.map(m => m.id === mId ? { ...m, home_score: hScore, away_score: aScore } : m));
           }}

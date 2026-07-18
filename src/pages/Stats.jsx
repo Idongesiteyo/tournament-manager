@@ -104,11 +104,13 @@ export default function Stats() {
       if (!events) return;
       events.forEach(e => {
         if (!e.player_name || !e.team_name) return;
-        const key = `${e.player_name}|${e.team_name}`;
+        const pName = e.player_name.trim();
+        const tName = e.team_name.trim();
+        const key = `${pName.toLowerCase()}|${tName.toLowerCase()}`;
         if (!playerStats[key]) {
           playerStats[key] = { 
-            player_name: e.player_name, 
-            team_name: e.team_name, 
+            player_name: pName, // keep original casing for display
+            team_name: tName, 
             matchesSet: new Set(), 
             goals: 0, 
             assists: 0, 
@@ -118,7 +120,7 @@ export default function Stats() {
         }
         playerStats[key].matchesSet.add(info.match_id);
         
-        if (type === 'goal' && !e.is_own_goal) playerStats[key].goals += 1;
+        if (type === 'goal' && !e.is_own_goal && !e.is_penalty_shootout) playerStats[key].goals += 1;
         if (type === 'assist') playerStats[key].assists += 1;
         if (type === 'yellow') playerStats[key].yellow_cards += 1;
         if (type === 'red') playerStats[key].red_cards += 1;

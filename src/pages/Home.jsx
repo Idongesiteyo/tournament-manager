@@ -97,7 +97,7 @@ export default function Home() {
         </div>
       )}
 
-      {!championTeam && <PlayoffWidget isComplete={seasonComplete} matches={matches} teams={teams} settings={settings} />}
+      <PlayoffWidget isComplete={seasonComplete} matches={matches} teams={teams} settings={settings} onMatchClick={(m, h, a) => setSelectedMatch({ match: m, homeTeam: h, awayTeam: a })} />
 
       <Card className="bg-[#0f1423] border-white/5 shadow-2xl overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between pb-4">
