@@ -113,6 +113,7 @@ export default function PublicMatchDetailModal({ isOpen, onClose, match, homeTea
                         <span className="text-white font-medium">{g.player_name}</span>
                         <span className="text-slate-500 text-xs">({g.team_name})</span>
                         {g.is_penalty && <span className="text-[10px] text-emerald-400 font-bold ml-1">(Pen)</span>}
+                        {g.is_own_goal && <span className="text-[10px] text-red-400 font-bold ml-1">(OG)</span>}
                       </div>
                     ))}
                   </div>

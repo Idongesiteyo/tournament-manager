@@ -66,7 +66,7 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
   const [editingEvent, setEditingEvent] = useState(null);
 
   // Form states
-  const [goalForm, setGoalForm] = useState({ player_name: "", team_name: homeTeam?.name || "", minute: "", is_penalty: false });
+  const [goalForm, setGoalForm] = useState({ player_name: "", team_name: homeTeam?.name || "", minute: "", is_penalty: false, is_own_goal: false });
   const [assistForm, setAssistForm] = useState({ player_name: "", team_name: homeTeam?.name || "", minute: "" });
   const [yellowForm, setYellowForm] = useState({ player_name: "", team_name: homeTeam?.name || "", minute: "" });
   const [redForm, setRedForm] = useState({ player_name: "", team_name: homeTeam?.name || "", minute: "" });
@@ -120,8 +120,14 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
 
     if (!error) {
       // Automatically update the match scoreline based on the goals array
-      const homeGoalsCount = info.goals.filter(g => g.team_name === homeTeam?.name).length;
-      const awayGoalsCount = info.goals.filter(g => g.team_name === awayTeam?.name).length;
+      const homeGoalsCount = info.goals.filter(g => 
+        (g.team_name === homeTeam?.name && !g.is_own_goal) ||
+        (g.team_name === awayTeam?.name && g.is_own_goal)
+      ).length;
+      const awayGoalsCount = info.goals.filter(g => 
+        (g.team_name === awayTeam?.name && !g.is_own_goal) ||
+        (g.team_name === homeTeam?.name && g.is_own_goal)
+      ).length;
       
       await supabase.from("matches").update({
         home_score: homeGoalsCount,
@@ -162,7 +168,7 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
       setInfo(prev => ({ ...prev, [type]: [...prev[type], newEvent] }));
     }
     
-    if (type === 'goals') setFormState({ player_name: "", team_name: defaultTeam, minute: "", is_penalty: false });
+    if (type === 'goals') setFormState({ player_name: "", team_name: defaultTeam, minute: "", is_penalty: false, is_own_goal: false });
     else setFormState({ player_name: "", team_name: defaultTeam, minute: "" });
   };
 
@@ -172,7 +178,8 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
       player_name: event.player_name,
       team_name: event.team_name,
       minute: event.minute || "",
-      is_penalty: event.is_penalty || false
+      is_penalty: event.is_penalty || false,
+      is_own_goal: event.is_own_goal || false
     });
   };
 
@@ -229,8 +236,12 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                     <Input type="number" placeholder="45" value={goalForm.minute} onChange={e => setGoalForm({...goalForm, minute: e.target.value})} className="h-9 bg-black/40" />
                   </div>
                   <div className="flex items-center gap-2 h-9 px-2">
-                    <input type="checkbox" id="pen" checked={goalForm.is_penalty} onChange={e => setGoalForm({...goalForm, is_penalty: e.target.checked})} className="rounded bg-black border-white/20" />
+                    <input type="checkbox" id="pen" checked={goalForm.is_penalty} onChange={e => setGoalForm({...goalForm, is_penalty: e.target.checked, is_own_goal: e.target.checked ? false : goalForm.is_own_goal})} className="rounded bg-black border-white/20" />
                     <label htmlFor="pen" className="text-xs text-slate-300 cursor-pointer">Penalty</label>
+                  </div>
+                  <div className="flex items-center gap-2 h-9 px-2">
+                    <input type="checkbox" id="og" checked={goalForm.is_own_goal} onChange={e => setGoalForm({...goalForm, is_own_goal: e.target.checked, is_penalty: e.target.checked ? false : goalForm.is_penalty})} className="rounded bg-black border-white/20" />
+                    <label htmlFor="og" className="text-xs text-slate-300 cursor-pointer">Own Goal</label>
                   </div>
                   <Button 
                     onClick={() => addEvent("goals", goalForm, setGoalForm, homeTeam?.name)} 
@@ -240,7 +251,7 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                     {editingEvent?.type === 'goals' ? 'Update' : <><Plus className="w-4 h-4 mr-1" /> Add</>}
                   </Button>
                   {editingEvent?.type === 'goals' && (
-                    <Button variant="ghost" size="sm" onClick={() => { setEditingEvent(null); setGoalForm({ player_name: "", team_name: homeTeam?.name, minute: "", is_penalty: false }); }} className="h-9">Cancel</Button>
+                    <Button variant="ghost" size="sm" onClick={() => { setEditingEvent(null); setGoalForm({ player_name: "", team_name: homeTeam?.name, minute: "", is_penalty: false, is_own_goal: false }); }} className="h-9">Cancel</Button>
                   )}
                 </div>
                 {info.goals.map(g => (
@@ -250,6 +261,7 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                       <span className="font-bold text-white">{g.player_name}</span>
                       <span className="text-slate-500 text-xs">({g.team_name})</span>
                       {g.is_penalty && <span className="bg-amber-500/20 text-amber-400 text-[10px] px-1.5 py-0.5 rounded font-bold">⚽ Penalty</span>}
+                      {g.is_own_goal && <span className="bg-red-500/20 text-red-400 text-[10px] px-1.5 py-0.5 rounded font-bold">⚽ OG</span>}
                     </div>
                     <div className="flex items-center gap-1">
                       <Button variant="ghost" size="icon" onClick={() => startEditEvent("goals", g, setGoalForm)} className="h-6 w-6 text-slate-500 hover:text-blue-400">✏️</Button>

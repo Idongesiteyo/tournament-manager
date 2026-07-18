@@ -118,7 +118,7 @@ export default function Stats() {
         }
         playerStats[key].matchesSet.add(info.match_id);
         
-        if (type === 'goal') playerStats[key].goals += 1;
+        if (type === 'goal' && !e.is_own_goal) playerStats[key].goals += 1;
         if (type === 'assist') playerStats[key].assists += 1;
         if (type === 'yellow') playerStats[key].yellow_cards += 1;
         if (type === 'red') playerStats[key].red_cards += 1;
