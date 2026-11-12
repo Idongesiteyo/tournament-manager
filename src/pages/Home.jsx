@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Trophy, Clock, ChevronRight } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { computeStandings, isSeasonComplete, getRecentForm } from "../lib/logic";
+import { computeStandings, isSeasonComplete, getRecentForm, sortMatches } from "../lib/logic";
 import { useStandingsConfig } from "../lib/useStandingsConfig";
 import { PlayoffWidget } from "../components/shared/PlayoffWidget";
 import { TeamColorBadge } from "../components/shared/TeamColorBadge";
@@ -71,7 +71,7 @@ export default function Home() {
       if (fixturesFilter === "upcoming") return m.status === "scheduled";
       return true;
     })
-    .sort((a, b) => a.matchday - b.matchday);
+    .sort(sortMatches);
 
   const matchesByDay = filteredMatches.reduce((acc, m) => {
     acc[m.matchday] = acc[m.matchday] || [];

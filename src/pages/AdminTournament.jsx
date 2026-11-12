@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { Save, Settings, Trash2, CalendarPlus, Check, X, ArrowLeft, ShieldAlert, ImagePlus, Edit2, UserCog, Info, RotateCcw } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { generateSchedule, isSeasonComplete, computeStandings, isTopTied } from "../lib/logic";
+import { generateSchedule, isSeasonComplete, computeStandings, isTopTied, sortMatches } from "../lib/logic";
 import { useStandingsConfig } from "../lib/useStandingsConfig";
 import TieBreakerManager from "../components/admin/TieBreakerManager";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
@@ -718,7 +718,7 @@ export default function AdminTournament() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {matches.sort((a,b) => a.matchday - b.matchday).map(match => {
+              {[...matches].sort(sortMatches).map(match => {
                 const home = getTeam(match.home_team_id);
                 const away = getTeam(match.away_team_id);
                 const isEditing = editingMatch?.id === match.id;

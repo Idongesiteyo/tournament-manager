@@ -247,6 +247,14 @@ export function isSeasonComplete(matches) {
   );
 }
 
+export function sortMatches(a, b) {
+  if (a.matchday !== b.matchday) return a.matchday - b.matchday;
+  const timeA = a.match_date ? new Date(a.match_date).getTime() : Infinity;
+  const timeB = b.match_date ? new Date(b.match_date).getTime() : Infinity;
+  if (timeA !== timeB) return timeA - timeB;
+  return String(a.id).localeCompare(String(b.id));
+}
+
 export function getRecentForm(teamId, matches) {
   const teamMatches = matches
     .filter(
@@ -255,7 +263,7 @@ export function getRecentForm(teamId, matches) {
         m.status === "completed" &&
         (m.home_team_id === teamId || m.away_team_id === teamId)
     )
-    .sort((a, b) => a.matchday - b.matchday); // chronological
+    .sort(sortMatches); // chronological
 
   const recent = teamMatches.slice(-5); // last 5
 

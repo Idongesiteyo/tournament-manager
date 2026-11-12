@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, UserPlus, Trash2, Shield, Target, CalendarDays, UserRound, Activity } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { computeStandings, getRecentForm } from "../lib/logic";
+import { computeStandings, getRecentForm, sortMatches } from "../lib/logic";
 import { useStandingsConfig } from "../lib/useStandingsConfig";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -62,7 +62,7 @@ export default function TeamDetail() {
 
   const teamMatches = matches
     .filter(m => m.home_team_id === teamId || m.away_team_id === teamId)
-    .sort((a, b) => a.matchday - b.matchday);
+    .sort(sortMatches);
 
   const form = getRecentForm(teamId, matches);
   const formStyle = { W: "bg-emerald-500", D: "bg-amber-500", L: "bg-red-500" };
