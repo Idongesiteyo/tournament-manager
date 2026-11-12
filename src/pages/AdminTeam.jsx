@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, UserPlus, Trash2, Check, X, Shield, Users, Edit2, Save, Camera, Loader2, Upload } from "lucide-react";
+import { ArrowLeft, UserPlus, Trash2, Check, X, Shield, Users, Edit2, Save, Camera, Loader2, Upload, FileSpreadsheet, Download } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -27,6 +27,147 @@ export default function AdminTeam() {
   const [editingPlayerId, setEditingPlayerId] = useState(null);
   const [editData, setEditData] = useState({ name: "", jersey_number: "", position: "" });
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingCsv, setUploadingCsv] = useState(false);
+
+  const normalizePosition = (raw) => {
+    const val = (raw || "").trim().toLowerCase();
+    if (["forward", "fw", "fwd", "st", "striker", "cf", "att", "attacker", "winger"].includes(val)) return "Forward";
+    if (["midfielder", "mid", "mf", "cm", "cam", "cdm", "lm", "rm", "midfield"].includes(val)) return "Midfielder";
+    if (["defender", "def", "df", "cb", "lb", "rb", "defense", "defence", "back"].includes(val)) return "Defender";
+    if (["goalkeeper", "gk", "goalie", "keeper"].includes(val)) return "Goalkeeper";
+    return null;
+  };
+
+  const downloadCsvTemplate = () => {
+    const csvContent = "name,number,position,starter\nJohn Doe,1,Goalkeeper,true\nJane Smith,4,Defender,true\nAlex Johnson,8,Midfielder,true\nSam Williams,9,Forward,false\n";
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `${(team?.name || "team").toLowerCase().replace(/\s+/g, "_")}_squad_template.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCsvUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    try {
+      setUploadingCsv(true);
+      const text = await file.text();
+      const lines = text
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean);
+
+      if (lines.length === 0) {
+        toast.error("The CSV file is empty.");
+        return;
+      }
+
+      const splitCsvRow = (row) => {
+        const delimiter = row.includes(";") && !row.includes(",") ? ";" : ",";
+        const result = [];
+        let current = "";
+        let inQuotes = false;
+        for (let i = 0; i < row.length; i++) {
+          const ch = row[i];
+          if (ch === '"') {
+            inQuotes = !inQuotes;
+          } else if (ch === delimiter && !inQuotes) {
+            result.push(current.trim());
+            current = "";
+          } else {
+            current += ch;
+          }
+        }
+        result.push(current.trim());
+        return result;
+      };
+
+      const firstCols = splitCsvRow(lines[0]).map(c => c.toLowerCase());
+      const hasHeader =
+        firstCols.some(c => ["name", "player", "player name", "player_name", "number", "jersey", "jersey_number", "#", "position", "pos"].includes(c)) ||
+        isNaN(parseInt(firstCols[1], 10));
+
+      let nameIdx = 0, numIdx = 1, posIdx = 2, starterIdx = 3;
+      if (hasHeader) {
+        const findCol = (aliases, fallback) => {
+          const idx = firstCols.findIndex(c => aliases.includes(c));
+          return idx !== -1 ? idx : fallback;
+        };
+        nameIdx = findCol(["name", "player", "player name", "player_name", "fullname", "full name"], 0);
+        numIdx = findCol(["number", "jersey", "jersey_number", "jersey number", "#", "no", "kit", "shirt"], 1);
+        posIdx = findCol(["position", "pos", "role"], 2);
+        starterIdx = findCol(["starter", "is_starter", "starting", "status", "lineup"], 3);
+      }
+
+      const dataLines = hasHeader ? lines.slice(1) : lines;
+      if (dataLines.length === 0) {
+        toast.error("No player rows found in CSV.");
+        return;
+      }
+
+      let currentStartersCount = players.filter(p => p.is_starter).length;
+      const toInsert = [];
+      const skipped = [];
+
+      dataLines.forEach((line, idx) => {
+        const rowNum = hasHeader ? idx + 2 : idx + 1;
+        const cols = splitCsvRow(line);
+        const rawName = cols[nameIdx]?.trim();
+        const rawNum = cols[numIdx]?.trim();
+        const rawPos = cols[posIdx]?.trim();
+        const rawStarter = cols[starterIdx]?.trim()?.toLowerCase();
+
+        if (!rawName && !rawNum && !rawPos) return;
+
+        const parsedNum = parseInt(rawNum, 10);
+        const normalizedPos = normalizePosition(rawPos || "Midfielder");
+
+        if (!rawName || isNaN(parsedNum) || !normalizedPos) {
+          skipped.push(`Row ${rowNum}`);
+          return;
+        }
+
+        let isStarter = ["true", "yes", "1", "y", "starter", "starting"].includes(rawStarter);
+        if (isStarter && currentStartersCount >= 8) {
+          isStarter = false;
+        } else if (isStarter) {
+          currentStartersCount += 1;
+        }
+
+        toInsert.push({
+          team_id: teamId,
+          name: rawName,
+          jersey_number: parsedNum,
+          position: normalizedPos,
+          is_starter: isStarter,
+        });
+      });
+
+      if (toInsert.length === 0) {
+        toast.error("No valid players found. Expected columns: Name, Number, Position (Forward, Midfielder, Defender, Goalkeeper).");
+        return;
+      }
+
+      const { error } = await supabase.from("players").insert(toInsert);
+      if (error) throw error;
+
+      const skippedMsg = skipped.length > 0 ? ` (${skipped.length} invalid row(s) skipped)` : "";
+      toast.success(`Imported ${toInsert.length} player${toInsert.length > 1 ? "s" : ""} from CSV!${skippedMsg}`);
+      loadData();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to import CSV: " + err.message);
+    } finally {
+      setUploadingCsv(false);
+    }
+  };
 
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -334,6 +475,40 @@ export default function AdminTeam() {
                 </div>
                 <Button type="submit" className="w-full font-bold">Add Player</Button>
               </form>
+
+              <div className="mt-6 pt-5 border-t border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1.5">
+                    <FileSpreadsheet className="w-4 h-4 text-primary" /> Bulk Upload (CSV)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={downloadCsvTemplate}
+                    className="text-[11px] text-primary hover:underline flex items-center gap-1 font-semibold"
+                  >
+                    <Download className="w-3 h-3" /> Template
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Columns: <span className="text-slate-200 font-medium">Name, Number, Position</span> (Forward, Midfielder, Defender, Goalkeeper), and optional <span className="text-slate-200 font-medium">Starter</span> (true/false).
+                </p>
+                <div className="relative">
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    onChange={handleCsvUpload}
+                    disabled={uploadingCsv}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                  />
+                  <Button type="button" variant="outline" className="w-full bg-black/20 border-white/10 pointer-events-none" disabled={uploadingCsv}>
+                    {uploadingCsv ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Importing CSV...</>
+                    ) : (
+                      <><Upload className="w-4 h-4 mr-2" /> Upload Players CSV</>
+                    )}
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
