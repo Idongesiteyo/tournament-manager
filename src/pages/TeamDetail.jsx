@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, UserPlus, Trash2, Shield, Target, CalendarDays, UserRound, Activity } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { computeStandings, getRecentForm } from "../lib/logic";
+import { useStandingsConfig } from "../lib/useStandingsConfig";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -52,7 +53,8 @@ export default function TeamDetail() {
   const starters = players.filter(p => p.is_starter).sort((a,b) => a.jersey_number - b.jersey_number);
   const bench = players.filter(p => !p.is_starter).sort((a,b) => a.jersey_number - b.jersey_number);
 
-  const standings = useMemo(() => computeStandings(teams, matches), [teams, matches]);
+  const standingsConfig = useStandingsConfig(tournamentId, teams, matches);
+  const standings = useMemo(() => computeStandings(teams, matches, standingsConfig), [teams, matches, standingsConfig]);
   const teamStats = standings.find(s => s.team.id === teamId);
   
   if (loading) return <div className="p-8 text-center text-muted-foreground">Loading team data...</div>;

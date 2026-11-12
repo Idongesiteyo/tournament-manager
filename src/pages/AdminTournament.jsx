@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef } from "react";
 import { Save, Settings, Trash2, CalendarPlus, Check, X, ArrowLeft, ShieldAlert, ImagePlus, Edit2, UserCog, Info, RotateCcw } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { generateSchedule, isSeasonComplete, computeStandings } from "../lib/logic";
+import { generateSchedule, isSeasonComplete, computeStandings, isTopTied } from "../lib/logic";
+import { useStandingsConfig } from "../lib/useStandingsConfig";
+import TieBreakerManager from "../components/admin/TieBreakerManager";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -40,6 +42,7 @@ export default function AdminTournament() {
   const [confirmFullReset, setConfirmFullReset] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [halfDurations, setHalfDurations] = useState({});
+  const standingsConfig = useStandingsConfig(tournamentId, teams, matches);
 
   useEffect(() => {
     const checkAuthAndLoad = async () => {
@@ -123,6 +126,16 @@ export default function AdminTournament() {
   const saveTournamentName = async () => {
     await supabase.from("tournaments").update({ name: tName }).eq("id", tournamentId);
     toast.success("Tournament name updated");
+  };
+
+  const saveTournamentFormat = async (newFormat) => {
+    const { error } = await supabase.from("tournaments").update({ format: newFormat }).eq("id", tournamentId);
+    if (error) {
+      toast.error("Could not update format. Make sure supabase_tournament_format.sql has been run.");
+    } else {
+      setSettings(prev => ({ ...prev, format: newFormat }));
+      toast.success("Tournament format updated");
+    }
   };
 
   const uploadTournamentImage = async (e) => {
@@ -297,8 +310,12 @@ export default function AdminTournament() {
 
   const generateFinal = async () => {
     if (teams.length < 2) return;
-    const standings = computeStandings(teams, matches);
+    const standings = computeStandings(teams, matches, standingsConfig);
     if(standings.length < 2) return;
+    if (isTopTied(standings)) {
+      toast.error("Top places are tied. Resolve the tie in the Tie-Breakers section first.");
+      return;
+    }
     
     await supabase.from("matches").insert([{
       tournament_id: tournamentId,
@@ -349,10 +366,29 @@ export default function AdminTournament() {
     setConfirmFullReset(false);
   };
 
+  const isLeagueOnly = settings?.format === "league";
+
+  // League-only format: the table topper is automatically crowned once all regular matches are done
+  useEffect(() => {
+    if (loading || !settings || !isLeagueOnly) return;
+    const complete = isSeasonComplete(matches);
+    const standings = complete ? computeStandings(teams, matches, standingsConfig) : [];
+    const topId = standings.length > 0 && !isTopTied(standings) ? standings[0].team.id : null;
+    if (complete && !settings.champion_team_id && topId) {
+      supabase.from("tournaments").update({ champion_team_id: topId }).eq("id", tournamentId).then(({ error }) => {
+        if (!error) toast.success("League complete! Table topper crowned champion.");
+      });
+    } else if (!complete && settings.champion_team_id) {
+      // A match was reset/edited so the season is no longer complete
+      supabase.from("tournaments").update({ champion_team_id: null }).eq("id", tournamentId);
+    }
+  }, [loading, settings?.format, settings?.champion_team_id, matches, teams, standingsConfig]);
+
   if (authError) return <UnauthorizedAccess />;
   if (loading) return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
 
   const seasonComplete = isSeasonComplete(matches);
+  const standings = computeStandings(teams, matches, standingsConfig);
   const finalMatch = matches.find(m => m.stage === "final");
   const regularMatches = matches.filter(m => m.stage === "regular");
   const completedRegular = regularMatches.filter(m => m.status === "completed").length;
@@ -414,6 +450,18 @@ export default function AdminTournament() {
             </div>
 
             <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">Competition Format</label>
+              <select
+                value={settings?.format || "playoff"}
+                onChange={(e) => saveTournamentFormat(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="playoff">League + Playoff Final (top 2 play final)</option>
+                <option value="league">League only (table topper wins)</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
               <label className="text-sm font-medium text-muted-foreground">Tournament Logo</label>
               <div className="flex items-center gap-4">
                 {tImage ? (
@@ -440,6 +488,46 @@ export default function AdminTournament() {
           </CardContent>
         </Card>
 
+        {isLeagueOnly ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>League Champion</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!seasonComplete ? (
+              <div className="text-center py-2 text-muted-foreground text-sm">
+                League-only format: the team topping the table after all regular matches is crowned champion.
+                <div className="mt-2 w-full bg-white/5 rounded-full h-1.5">
+                  <div className="bg-primary h-1.5 rounded-full" style={{ width: `${(completedRegular/12)*100}%`}} />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {settings?.champion_team_id ? (
+                  <div className="text-center text-primary font-bold text-sm tracking-widest uppercase">Champion Crowned</div>
+                ) : (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded text-amber-500 text-sm text-center font-bold">
+                    The top teams are level on points, goal difference, goals scored and head-to-head. Please select the champion below.
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground block text-center">Set / Override Champion (e.g. tie-break)</label>
+                  <select
+                    className="flex h-9 w-full rounded-md border border-input bg-background/50 px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    value={settings?.champion_team_id || ""}
+                    onChange={(e) => setManualChampion(e.target.value || null)}
+                  >
+                    <option value="">-- Select Champion --</option>
+                    {teams.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        ) : (
         <Card>
           <CardHeader>
             <CardTitle>Playoff Final</CardTitle>
@@ -495,7 +583,10 @@ export default function AdminTournament() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
+
+      <TieBreakerManager settings={settings} tournamentId={tournamentId} standings={standings} />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

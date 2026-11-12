@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { Trophy, Clock, ChevronRight } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { computeStandings, isSeasonComplete, getRecentForm } from "../lib/logic";
+import { useStandingsConfig } from "../lib/useStandingsConfig";
 import { PlayoffWidget } from "../components/shared/PlayoffWidget";
 import { TeamColorBadge } from "../components/shared/TeamColorBadge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
@@ -19,6 +20,7 @@ export default function Home() {
   const [fixturesFilter, setFixturesFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [selectedMatch, setSelectedMatch] = useState(null);
+  const standingsConfig = useStandingsConfig(tournamentId, teams, matches);
 
   const loadData = async () => {
     const [t, m, s] = await Promise.all([
@@ -50,8 +52,9 @@ export default function Home() {
   if (loading) return <div className="p-8 text-center text-muted-foreground">Loading tournament...</div>;
   if (!settings) return <div className="p-8 text-center text-destructive font-bold">Tournament not found</div>;
 
-  const standings = computeStandings(teams, matches);
+  const standings = computeStandings(teams, matches, standingsConfig);
   const seasonComplete = isSeasonComplete(matches);
+  const isLeagueOnly = settings?.format === "league";
   const championId = settings?.champion_team_id;
   const championTeam = championId ? teams.find(t => t.id === championId) : null;
 
@@ -97,7 +100,9 @@ export default function Home() {
         </div>
       )}
 
-      <PlayoffWidget isComplete={seasonComplete} matches={matches} teams={teams} settings={settings} onMatchClick={(m, h, a) => setSelectedMatch({ match: m, homeTeam: h, awayTeam: a })} />
+      {!isLeagueOnly && (
+        <PlayoffWidget isComplete={seasonComplete} matches={matches} teams={teams} settings={settings} onMatchClick={(m, h, a) => setSelectedMatch({ match: m, homeTeam: h, awayTeam: a })} />
+      )}
 
       <Card className="bg-[#0f1423] border-white/5 shadow-2xl overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between pb-4">
@@ -128,7 +133,8 @@ export default function Home() {
               </TableHeader>
               <TableBody>
                 {standings.map((row, idx) => {
-                  const isPlayoff = idx < 2;
+                  const isPlayoff = !isLeagueOnly && idx < 2;
+                  const isHighlightedRank = isLeagueOnly ? idx === 0 : idx < 2;
                   const isChampion = championId === row.team.id;
                   const form = getRecentForm(row.team.id, matches);
 
@@ -141,7 +147,7 @@ export default function Home() {
                       )}
                     >
                       <TableCell className="text-center font-bold text-slate-400 sticky left-0 bg-[#0f1423] group-hover:bg-[#1a2035] transition-colors z-10 px-1 sm:px-4">
-                        {isPlayoff ? (
+                        {isHighlightedRank ? (
                           <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-primary text-black flex items-center justify-center mx-auto text-[10px] sm:text-xs">{idx + 1}</div>
                         ) : (
                           <span className="text-xs sm:text-sm">{idx + 1}</span>
@@ -160,6 +166,11 @@ export default function Home() {
                             {isPlayoff && !championId && (
                               <span className="text-[9px] sm:text-[10px] text-primary font-bold">
                                 ● Playoff
+                              </span>
+                            )}
+                            {isLeagueOnly && idx === 0 && !championId && (
+                              <span className="text-[9px] sm:text-[10px] text-primary font-bold">
+                                ● League Leader
                               </span>
                             )}
                           </div>
@@ -191,7 +202,7 @@ export default function Home() {
           </div>
           <div className="p-4 border-t border-white/5 bg-black/10">
             <span className="text-xs text-primary font-bold flex items-center gap-2">
-              ● Top 2 qualify for Finals
+              {isLeagueOnly ? "● 1st place wins the League Championship" : "● Top 2 qualify for Finals"}
             </span>
           </div>
         </CardContent>

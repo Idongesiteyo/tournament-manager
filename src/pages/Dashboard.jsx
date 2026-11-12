@@ -9,6 +9,8 @@ import { useNavigate, Link } from "react-router-dom";
 export default function Dashboard() {
   const [tournaments, setTournaments] = useState([]);
   const [newTournamentName, setNewTournamentName] = useState("");
+  const [newTournamentFormat, setNewTournamentFormat] = useState("playoff");
+  const [nameError, setNameError] = useState("");
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
@@ -71,11 +73,17 @@ export default function Dashboard() {
 
   const handleCreateTournament = async (e) => {
     e.preventDefault();
-    if (!newTournamentName || !user) return;
+    const trimmedName = newTournamentName.trim();
+    if (!trimmedName) {
+      setNameError("Tournament name cannot be blank.");
+      return;
+    }
+    if (!user) return;
+    setNameError("");
     
     const { data, error } = await supabase
       .from("tournaments")
-      .insert([{ name: newTournamentName, user_id: user.id }])
+      .insert([{ name: trimmedName, user_id: user.id, format: newTournamentFormat }])
       .select();
       
     if (!error && data) {
@@ -132,16 +140,29 @@ export default function Dashboard() {
           <Card className="md:col-span-1 border-primary/20 bg-primary/5">
             <CardHeader>
               <CardTitle>Create Tournament</CardTitle>
-              <CardDescription>Start a new 4-team league</CardDescription>
+              <CardDescription>Start a new 4-team league and pick its format</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleCreateTournament} className="space-y-4">
                 <Input 
                   placeholder="Tournament Name" 
                   value={newTournamentName}
-                  onChange={e => setNewTournamentName(e.target.value)}
-                  className="bg-background/50 border-white/10"
+                  onChange={e => { setNewTournamentName(e.target.value); if (nameError) setNameError(""); }}
+                  className={`bg-background/50 ${nameError ? "border-destructive" : "border-white/10"}`}
+                  maxLength={100}
                 />
+                {nameError && <p className="text-destructive text-xs font-medium">{nameError}</p>}
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Tournament Format</label>
+                  <select
+                    value={newTournamentFormat}
+                    onChange={e => setNewTournamentFormat(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-white/10 bg-background/50 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="playoff">League + Playoff Final (top 2 play the final)</option>
+                    <option value="league">League only (table topper is champion)</option>
+                  </select>
+                </div>
                 <Button type="submit" className="w-full">
                   <Plus className="w-4 h-4 mr-2" /> Create New
                 </Button>
@@ -162,6 +183,9 @@ export default function Dashboard() {
                 <CardContent className="p-6 flex items-center justify-between">
                   <div>
                     <h3 className="font-bold text-lg">{t.name}</h3>
+                    <span className="text-[10px] uppercase tracking-wider font-bold text-primary/80">
+                      {t.format === "league" ? "League only" : "League + Playoff"}
+                    </span>
                     <div className="flex items-center gap-4 mt-2">
                       <Link to={`/t/${t.id}`} className="text-sm text-primary hover:underline">
                         Public Standings Page

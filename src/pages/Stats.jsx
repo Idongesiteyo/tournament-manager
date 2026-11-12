@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { computeStandings, getRecentForm } from "../lib/logic";
+import { useStandingsConfig } from "../lib/useStandingsConfig";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from "recharts";
 import { Activity, Target, Shield, TrendingUp, BarChart2 } from "lucide-react";
@@ -47,7 +48,8 @@ export default function Stats() {
     };
   }, [tournamentId]);
 
-  const standings = useMemo(() => computeStandings(teams, matches), [teams, matches]);
+  const standingsConfig = useStandingsConfig(tournamentId, teams, matches);
+  const standings = useMemo(() => computeStandings(teams, matches, standingsConfig), [teams, matches, standingsConfig]);
 
   if (loading) return <div className="p-8 text-center text-muted-foreground">Loading stats...</div>;
 
