@@ -7,6 +7,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { toast } from "sonner";
 import UnauthorizedAccess from "../components/ui/UnauthorizedAccess";
+import PageLoader from "../components/ui/PageLoader";
 
 const VALID_FORMATIONS = ["3-3-1", "3-2-2", "2-3-2", "2-4-1", "4-2-1"];
 
@@ -357,7 +358,7 @@ export default function AdminTeam() {
   };
 
   if (authError) return <UnauthorizedAccess />;
-  if (loading) return <div className="p-8 text-center text-muted-foreground">Loading Team Data...</div>;
+  if (loading) return <PageLoader label="Loading Team Data" />;
   if (!team) return <div className="p-8 text-center text-destructive font-bold">Team not found</div>;
 
   const starters = players.filter(p => p.is_starter).sort((a,b) => a.jersey_number - b.jersey_number);

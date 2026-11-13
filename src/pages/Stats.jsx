@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../co
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from "recharts";
 import { Activity, Target, Shield, TrendingUp, BarChart2 } from "lucide-react";
 import { TeamColorBadge } from "../components/shared/TeamColorBadge";
+import PageLoader from "../components/ui/PageLoader";
 
 export default function Stats() {
   const { tournamentId } = useParams();
@@ -51,7 +52,7 @@ export default function Stats() {
   const standingsConfig = useStandingsConfig(tournamentId, teams, matches);
   const standings = useMemo(() => computeStandings(teams, matches, standingsConfig), [teams, matches, standingsConfig]);
 
-  if (loading) return <div className="p-8 text-center text-muted-foreground">Loading stats...</div>;
+  if (loading) return <PageLoader label="Loading Statistics" />;
 
   const totalGoals = standings.reduce((acc, s) => acc + s.gf, 0);
   const totalMatches = standings.reduce((acc, s) => acc + s.mp, 0) / 2;

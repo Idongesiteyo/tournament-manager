@@ -148,6 +148,13 @@ export function computeStandings(teams, matches, config = {}) {
     return subGroups.flatMap((g) => rank(g, rest));
   };
 
+  // If no matches have been played at all, sort teams alphabetically
+  if (regularDone.length === 0) {
+    return [...standings]
+      .sort((a, b) => a.team.name.localeCompare(b.team.name))
+      .map((s) => ({ ...s, tied: false, tieGroup: null, resolvedBy: null }));
+  }
+
   // 1. Group by points, 2. apply each configured tie-breaker rule in order
   const byPoints = [...standings].sort((a, b) => b.pts - a.pts);
   const pointGroups = [];

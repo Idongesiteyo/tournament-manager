@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { ShieldAlert, Eye, EyeOff } from "lucide-react";
+import { ShieldAlert, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export default function Auth() {
@@ -40,10 +40,10 @@ export default function Auth() {
       <Card className="w-full max-w-sm border-primary/20 bg-primary/5">
         <CardHeader>
           <CardTitle className="text-center text-primary flex items-center justify-center gap-2">
-            <ShieldAlert className="w-6 h-6" /> {isSignUp ? "Create Account" : "Admin Login"}
+            <ShieldAlert className="w-6 h-6" /> {isSignUp ? "Request Admin Access" : "Admin Login"}
           </CardTitle>
           <CardDescription className="text-center">
-            {isSignUp ? "Sign up to manage your own tournaments" : "Sign in to your dashboard"}
+            {isSignUp ? "Registration is restricted to approved & profiled administrators" : "Sign in to your dashboard"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -77,16 +77,21 @@ export default function Auth() {
             </div>
             {error && <p className="text-destructive text-sm font-medium text-center">{error}</p>}
             <Button type="submit" className="w-full font-bold" disabled={loading}>
-              {loading ? "Please wait..." : isSignUp ? "Sign Up" : "Sign In"}
+              {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Please wait...</> : isSignUp ? "Submit for Review" : "Sign In"}
             </Button>
-            <div className="text-center text-sm text-muted-foreground mt-4">
+            <div className="text-center text-sm text-muted-foreground mt-4 space-y-1.5">
               <button 
                 type="button" 
                 onClick={() => setIsSignUp(!isSignUp)}
                 className="hover:text-primary transition-colors underline"
               >
-                {isSignUp ? "Already have an account? Sign In" : "Need an account? Sign Up"}
+                {isSignUp ? "Already have an approved account? Sign In" : "Profiled user? Request Admin Access"}
               </button>
+              {!isSignUp && (
+                <p className="text-[11px] text-slate-400">
+                  Access is restricted to profiled users and requires admin review.
+                </p>
+              )}
             </div>
           </form>
         </CardContent>

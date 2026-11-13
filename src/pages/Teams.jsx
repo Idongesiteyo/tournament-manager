@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import FormationPitch from "../components/ui/FormationPitch";
+import PageLoader from "../components/ui/PageLoader";
 
 export default function Teams() {
   const { tournamentId } = useParams();
@@ -35,7 +36,7 @@ export default function Teams() {
     };
   }, [tournamentId]);
 
-  if (loading) return <div className="p-8 text-center text-muted-foreground">Loading teams...</div>;
+  if (loading) return <PageLoader label="Loading Teams" />;
 
   return (
     <div className="space-y-8 animate-in fade-in">

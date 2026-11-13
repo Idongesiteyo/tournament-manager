@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { X, Clock, Trophy } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { TeamColorBadge } from "../shared/TeamColorBadge";
+import PageLoader from "./PageLoader";
 
 export default function PublicMatchDetailModal({ isOpen, onClose, match, homeTeam, awayTeam }) {
   const [info, setInfo] = useState({
@@ -42,17 +43,35 @@ export default function PublicMatchDetailModal({ isOpen, onClose, match, homeTea
     fetchInfo();
   }, [isOpen, match]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen || !match) return null;
 
   const hasAnyEvents = info.goals.length > 0 || info.assists.length > 0 || info.yellow_cards.length > 0 || info.red_cards.length > 0;
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
       <div className="bg-[#090b14] border border-white/10 rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95">
         
         {/* Header - Scoreboard */}
         <div className="relative p-6 border-b border-white/10 bg-gradient-to-b from-white/5 to-transparent shrink-0">
-          <button onClick={onClose} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white bg-black/20 hover:bg-white/10 rounded-full transition-colors">
+          <button
+            type="button"
+            aria-label="Close match details"
+            title="Close (Esc)"
+            onClick={onClose}
+            className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white bg-black/20 hover:bg-white/10 rounded-full transition-colors"
+          >
             <X className="w-5 h-5" />
           </button>
           
@@ -93,7 +112,7 @@ export default function PublicMatchDetailModal({ isOpen, onClose, match, homeTea
         {/* Content - Match Events */}
         <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
           {loading ? (
-            <div className="text-center text-slate-400 py-10">Loading match events...</div>
+            <PageLoader label="Loading Match Events" compact />
           ) : !hasAnyEvents ? (
             <div className="text-center py-12 flex flex-col items-center justify-center">
               <Trophy className="w-12 h-12 text-white/5 mb-3" />

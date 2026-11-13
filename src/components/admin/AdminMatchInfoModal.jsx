@@ -1,20 +1,31 @@
 import React, { useState, useEffect } from "react";
-import { X, Plus, Trash2, ShieldAlert } from "lucide-react";
+import { X, Plus, Trash2, Edit2 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { toast } from "sonner";
+import PageLoader from "../ui/PageLoader";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 
-const PlayerAutocomplete = ({ value, onChange, onSelectTeam, teamPlayers, placeholder, homeTeam, awayTeam }) => {
+const PlayerAutocomplete = ({ id, value, onChange, onSelectTeam, teamPlayers, selectedTeamName, placeholder, homeTeam, awayTeam }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
-  
-  const filtered = teamPlayers.filter(p => 
-    p.name.toLowerCase().includes(value.toLowerCase())
+
+  // Prioritize players on the currently selected team, then match query
+  const sortedPlayers = [...teamPlayers].sort((a, b) => {
+    const aTeam = a.team_id === homeTeam?.id ? homeTeam?.name : awayTeam?.name;
+    const bTeam = b.team_id === homeTeam?.id ? homeTeam?.name : awayTeam?.name;
+    if (aTeam === selectedTeamName && bTeam !== selectedTeamName) return -1;
+    if (bTeam === selectedTeamName && aTeam !== selectedTeamName) return 1;
+    return a.jersey_number - b.jersey_number;
+  });
+
+  const filtered = sortedPlayers.filter(p =>
+    !value.trim() || p.name.toLowerCase().includes(value.toLowerCase()) || String(p.jersey_number).includes(value.trim())
   );
 
   return (
     <div className="relative">
       <Input 
+        id={id}
         placeholder={placeholder} 
         value={value} 
         onChange={e => {
@@ -22,28 +33,37 @@ const PlayerAutocomplete = ({ value, onChange, onSelectTeam, teamPlayers, placeh
           setShowSuggestions(true);
         }}
         onFocus={() => setShowSuggestions(true)}
-        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+        onBlur={() => setTimeout(() => setShowSuggestions(false), 180)}
+        autoComplete="off"
         className="h-9 bg-black/40" 
       />
-      {showSuggestions && value && filtered.length > 0 && (
-        <div className="absolute z-10 w-full mt-1 bg-[#1a2235] border border-white/10 rounded-md shadow-lg max-h-40 overflow-y-auto custom-scrollbar">
+      {showSuggestions && filtered.length > 0 && (
+        <div className="absolute z-20 w-full mt-1 bg-[#1a2235] border border-white/10 rounded-md shadow-xl max-h-44 overflow-y-auto custom-scrollbar">
           {filtered.map(p => {
             const isHome = p.team_id === homeTeam?.id;
-            const teamBadge = isHome ? homeTeam?.short_name : awayTeam?.short_name;
-            const teamName = isHome ? homeTeam?.name : awayTeam?.name;
+            const teamObj = isHome ? homeTeam : awayTeam;
+            const teamName = teamObj?.name;
 
             return (
               <div 
                 key={p.id} 
-                className="px-3 py-2 text-sm hover:bg-white/10 cursor-pointer text-white flex justify-between items-center"
-                onClick={() => {
+                className="px-3 py-2 text-sm hover:bg-white/10 cursor-pointer text-white flex justify-between items-center gap-2"
+                onMouseDown={(e) => {
+                  e.preventDefault();
                   onChange(p.name);
-                  if (onSelectTeam) onSelectTeam(teamName);
+                  if (onSelectTeam && teamName) onSelectTeam(teamName);
                   setShowSuggestions(false);
                 }}
               >
-                <span>{p.name} <span className="text-xs text-slate-400">#{p.jersey_number}</span></span>
-                <span className="text-[10px] bg-white/5 px-1.5 py-0.5 rounded text-slate-300">{teamBadge}</span>
+                <span className="truncate font-medium">
+                  {p.name} <span className="text-xs text-slate-400">#{p.jersey_number}</span>
+                </span>
+                <span
+                  className="text-[10px] font-bold px-1.5 py-0.5 rounded text-white shrink-0"
+                  style={{ backgroundColor: teamObj?.color || "#475569" }}
+                >
+                  {teamObj?.short_name}
+                </span>
               </div>
             );
           })}
@@ -77,7 +97,13 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
     
     const fetchInfo = async () => {
       setLoading(true);
-      const { data, error } = await supabase.from("match_info").select("*").eq("match_id", matchId).single();
+      const infoPromise = supabase.from("match_info").select("*").eq("match_id", matchId).maybeSingle();
+      const playersPromise = (homeTeam?.id && awayTeam?.id)
+        ? supabase.from("players").select("*").in("team_id", [homeTeam.id, awayTeam.id])
+        : Promise.resolve({ data: [] });
+
+      const [{ data }, { data: players }] = await Promise.all([infoPromise, playersPromise]);
+
       if (data) {
         setInfo({
           goals: data.goals || [],
@@ -89,26 +115,30 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
         setInfo({ goals: [], assists: [], yellow_cards: [], red_cards: [] });
       }
 
-      if (homeTeam?.id && awayTeam?.id) {
-        const { data: players } = await supabase
-          .from("players")
-          .select("*")
-          .in("team_id", [homeTeam.id, awayTeam.id]);
-        if (players) setTeamPlayers(players);
-      }
-
+      if (players) setTeamPlayers(players);
       setLoading(false);
     };
     
     fetchInfo();
   }, [isOpen, matchId, homeTeam, awayTeam]);
 
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && !saving) onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, saving, onClose]);
+
   if (!isOpen) return null;
 
   const handleSave = async () => {
+    if (loading || saving) return;
     setSaving(true);
     
-    const { data: existing } = await supabase.from("match_info").select("match_id").eq("match_id", matchId).single();
+    const { data: existing } = await supabase.from("match_info").select("match_id").eq("match_id", matchId).maybeSingle();
     
     let error;
     if (existing) {
@@ -120,7 +150,6 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
     }
 
     if (!error) {
-      // Automatically update the match scoreline based on the goals array
       const homeGoalsCount = info.goals.filter(g => 
         !g.is_penalty_shootout && (
           (g.team_name === homeTeam?.name && !g.is_own_goal) ||
@@ -155,19 +184,24 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
 
   const addEvent = (type, formState, setFormState, defaultTeam) => {
     if (!formState.player_name.trim()) {
-      toast.error("Player name is required");
+      toast.error("Player name is required.");
       return;
+    }
+    if (!formState.is_penalty_shootout) {
+      const minVal = parseInt(formState.minute, 10);
+      if (formState.minute === "" || isNaN(minVal) || minVal < 1 || minVal > 130) {
+        toast.error("Please enter a valid match minute (1–130).");
+        return;
+      }
     }
     
     if (editingEvent && editingEvent.type === type) {
-      // Update existing
       setInfo(prev => ({
         ...prev,
         [type]: prev[type].map(e => e.id === editingEvent.id ? { ...e, ...formState, minute: formState.minute ? parseInt(formState.minute, 10) : "" } : e)
       }));
       setEditingEvent(null);
     } else {
-      // Add new
       const newEvent = { ...formState, id: crypto.randomUUID() };
       if (newEvent.minute) newEvent.minute = parseInt(newEvent.minute, 10);
       setInfo(prev => ({ ...prev, [type]: [...prev[type], newEvent] }));
@@ -202,7 +236,10 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={(e) => { if (e.target === e.currentTarget && !saving) onClose(); }}
+    >
       <div className="bg-[#0f1423] border border-white/10 rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95">
         
         {/* Header */}
@@ -211,7 +248,13 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
             <h2 className="text-xl font-black text-white">Match Info</h2>
             <p className="text-sm text-slate-400">{homeTeam?.name} vs {awayTeam?.name}</p>
           </div>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close Match Info modal"
+            title="Close (Esc)"
+            className="p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -219,35 +262,37 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
         {/* Content */}
         <div className="p-6 overflow-y-auto flex-1 space-y-8 custom-scrollbar">
           {loading ? (
-            <div className="text-center text-slate-400 py-10">Loading data...</div>
+            <PageLoader label="Loading Match Data" compact />
           ) : (
             <>
               {/* GOALS */}
               <section className="space-y-4">
                 <h3 className="font-bold text-emerald-400 text-lg border-b border-white/5 pb-2">Goals</h3>
                 <div className="flex flex-wrap gap-3 items-end bg-black/20 p-4 rounded-lg border border-white/5">
-                  <div className="flex-1 min-w-[150px]">
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Player</label>
+                  <div className="flex-1 min-w-[160px]">
+                    <label htmlFor="goal-player" className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Player</label>
                     <PlayerAutocomplete 
-                      placeholder="Type player name..."
+                      id="goal-player"
+                      placeholder="Select or type player..."
                       value={goalForm.player_name}
                       onChange={val => setGoalForm({...goalForm, player_name: val})}
                       onSelectTeam={team => setGoalForm(prev => ({...prev, team_name: team}))}
                       teamPlayers={teamPlayers}
+                      selectedTeamName={goalForm.team_name}
                       homeTeam={homeTeam}
                       awayTeam={awayTeam}
                     />
                   </div>
-                  <div className="w-32">
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Team</label>
-                    <select className="w-full h-9 rounded-md border border-white/10 bg-black/40 px-2 text-sm text-white" value={goalForm.team_name} onChange={e => setGoalForm({...goalForm, team_name: e.target.value})}>
-                      <option value={homeTeam?.name}>{homeTeam?.short_name}</option>
-                      <option value={awayTeam?.name}>{awayTeam?.short_name}</option>
+                  <div className="w-44">
+                    <label htmlFor="goal-team" className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Team</label>
+                    <select id="goal-team" className="w-full h-9 rounded-md border border-white/10 bg-black/40 px-2 text-sm text-white" value={goalForm.team_name} onChange={e => setGoalForm({...goalForm, team_name: e.target.value})}>
+                      <option value={homeTeam?.name}>{homeTeam?.name} ({homeTeam?.short_name})</option>
+                      <option value={awayTeam?.name}>{awayTeam?.name} ({awayTeam?.short_name})</option>
                     </select>
                   </div>
                   <div className="w-20">
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Min</label>
-                    <Input type="number" placeholder="45" value={goalForm.minute} onChange={e => setGoalForm({...goalForm, minute: e.target.value})} className="h-9 bg-black/40" />
+                    <label htmlFor="goal-min" className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Min *</label>
+                    <Input id="goal-min" type="number" min="1" max="130" placeholder="Min" value={goalForm.minute} onChange={e => setGoalForm({...goalForm, minute: e.target.value})} className="h-9 bg-black/40" />
                   </div>
                   <div className="flex items-center gap-2 h-9 px-2">
                     <input type="checkbox" id="pen" checked={goalForm.is_penalty} onChange={e => setGoalForm({...goalForm, is_penalty: e.target.checked, is_own_goal: e.target.checked ? false : goalForm.is_own_goal})} className="rounded bg-black border-white/20" />
@@ -268,18 +313,18 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                     <Button variant="ghost" size="sm" onClick={() => { setEditingEvent(null); setGoalForm({ player_name: "", team_name: homeTeam?.name, minute: "", is_penalty: false, is_own_goal: false }); }} className="h-9">Cancel</Button>
                   )}
                 </div>
-                {info.goals.map(g => (
+                {info.goals.filter(g => !g.is_penalty_shootout).map(g => (
                   <div key={g.id} className="flex items-center justify-between bg-white/[0.02] p-2 rounded border border-white/5 text-sm">
                     <div className="flex items-center gap-3">
                       <span className="text-slate-400 w-8">{g.minute ? `${g.minute}'` : '-'}</span>
                       <span className="font-bold text-white">{g.player_name}</span>
-                      <span className="text-slate-500 text-xs">({g.team_name})</span>
+                      <span className="text-slate-400 text-xs">({g.team_name})</span>
                       {g.is_penalty && <span className="bg-amber-500/20 text-amber-400 text-[10px] px-1.5 py-0.5 rounded font-bold">⚽ Penalty</span>}
                       {g.is_own_goal && <span className="bg-red-500/20 text-red-400 text-[10px] px-1.5 py-0.5 rounded font-bold">⚽ OG</span>}
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => startEditEvent("goals", g, setGoalForm)} className="h-6 w-6 text-slate-500 hover:text-blue-400">✏️</Button>
-                      <Button variant="ghost" size="icon" onClick={() => removeEvent("goals", g.id)} className="h-6 w-6 text-slate-500 hover:text-red-400"><Trash2 className="w-3 h-3" /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Edit goal" title="Edit goal" onClick={() => startEditEvent("goals", g, setGoalForm)} className="h-7 w-7 text-slate-400 hover:text-blue-400"><Edit2 className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Delete goal" title="Delete goal" onClick={() => removeEvent("goals", g.id)} className="h-7 w-7 text-slate-400 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </div>
                 ))}
@@ -289,28 +334,30 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
               <section className="space-y-4">
                 <h3 className="font-bold text-blue-400 text-lg border-b border-white/5 pb-2">Assists</h3>
                 <div className="flex flex-wrap gap-3 items-end bg-black/20 p-4 rounded-lg border border-white/5">
-                  <div className="flex-1 min-w-[150px]">
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Player</label>
+                  <div className="flex-1 min-w-[160px]">
+                    <label htmlFor="assist-player" className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Player</label>
                     <PlayerAutocomplete 
-                      placeholder="Type player name..."
+                      id="assist-player"
+                      placeholder="Select or type player..."
                       value={assistForm.player_name}
                       onChange={val => setAssistForm({...assistForm, player_name: val})}
                       onSelectTeam={team => setAssistForm(prev => ({...prev, team_name: team}))}
                       teamPlayers={teamPlayers}
+                      selectedTeamName={assistForm.team_name}
                       homeTeam={homeTeam}
                       awayTeam={awayTeam}
                     />
                   </div>
-                  <div className="w-32">
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Team</label>
-                    <select className="w-full h-9 rounded-md border border-white/10 bg-black/40 px-2 text-sm text-white" value={assistForm.team_name} onChange={e => setAssistForm({...assistForm, team_name: e.target.value})}>
-                      <option value={homeTeam?.name}>{homeTeam?.short_name}</option>
-                      <option value={awayTeam?.name}>{awayTeam?.short_name}</option>
+                  <div className="w-44">
+                    <label htmlFor="assist-team" className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Team</label>
+                    <select id="assist-team" className="w-full h-9 rounded-md border border-white/10 bg-black/40 px-2 text-sm text-white" value={assistForm.team_name} onChange={e => setAssistForm({...assistForm, team_name: e.target.value})}>
+                      <option value={homeTeam?.name}>{homeTeam?.name} ({homeTeam?.short_name})</option>
+                      <option value={awayTeam?.name}>{awayTeam?.name} ({awayTeam?.short_name})</option>
                     </select>
                   </div>
                   <div className="w-20">
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Min</label>
-                    <Input type="number" placeholder="45" value={assistForm.minute} onChange={e => setAssistForm({...assistForm, minute: e.target.value})} className="h-9 bg-black/40" />
+                    <label htmlFor="assist-min" className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Min *</label>
+                    <Input id="assist-min" type="number" min="1" max="130" placeholder="Min" value={assistForm.minute} onChange={e => setAssistForm({...assistForm, minute: e.target.value})} className="h-9 bg-black/40" />
                   </div>
                   <Button 
                     onClick={() => addEvent("assists", assistForm, setAssistForm, homeTeam?.name)} 
@@ -328,11 +375,11 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                     <div className="flex items-center gap-3">
                       <span className="text-slate-400 w-8">{a.minute ? `${a.minute}'` : '-'}</span>
                       <span className="font-bold text-white">{a.player_name}</span>
-                      <span className="text-slate-500 text-xs">({a.team_name})</span>
+                      <span className="text-slate-400 text-xs">({a.team_name})</span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => startEditEvent("assists", a, setAssistForm)} className="h-6 w-6 text-slate-500 hover:text-blue-400">✏️</Button>
-                      <Button variant="ghost" size="icon" onClick={() => removeEvent("assists", a.id)} className="h-6 w-6 text-slate-500 hover:text-red-400"><Trash2 className="w-3 h-3" /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Edit assist" title="Edit assist" onClick={() => startEditEvent("assists", a, setAssistForm)} className="h-7 w-7 text-slate-400 hover:text-blue-400"><Edit2 className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Delete assist" title="Delete assist" onClick={() => removeEvent("assists", a.id)} className="h-7 w-7 text-slate-400 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </div>
                 ))}
@@ -342,28 +389,30 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
               <section className="space-y-4">
                 <h3 className="font-bold text-yellow-400 text-lg border-b border-white/5 pb-2">Yellow Cards</h3>
                 <div className="flex flex-wrap gap-3 items-end bg-black/20 p-4 rounded-lg border border-white/5">
-                  <div className="flex-1 min-w-[150px]">
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Player</label>
+                  <div className="flex-1 min-w-[160px]">
+                    <label htmlFor="yc-player" className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Player</label>
                     <PlayerAutocomplete 
-                      placeholder="Type player name..."
+                      id="yc-player"
+                      placeholder="Select or type player..."
                       value={yellowForm.player_name}
                       onChange={val => setYellowForm({...yellowForm, player_name: val})}
                       onSelectTeam={team => setYellowForm(prev => ({...prev, team_name: team}))}
                       teamPlayers={teamPlayers}
+                      selectedTeamName={yellowForm.team_name}
                       homeTeam={homeTeam}
                       awayTeam={awayTeam}
                     />
                   </div>
-                  <div className="w-32">
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Team</label>
-                    <select className="w-full h-9 rounded-md border border-white/10 bg-black/40 px-2 text-sm text-white" value={yellowForm.team_name} onChange={e => setYellowForm({...yellowForm, team_name: e.target.value})}>
-                      <option value={homeTeam?.name}>{homeTeam?.short_name}</option>
-                      <option value={awayTeam?.name}>{awayTeam?.short_name}</option>
+                  <div className="w-44">
+                    <label htmlFor="yc-team" className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Team</label>
+                    <select id="yc-team" className="w-full h-9 rounded-md border border-white/10 bg-black/40 px-2 text-sm text-white" value={yellowForm.team_name} onChange={e => setYellowForm({...yellowForm, team_name: e.target.value})}>
+                      <option value={homeTeam?.name}>{homeTeam?.name} ({homeTeam?.short_name})</option>
+                      <option value={awayTeam?.name}>{awayTeam?.name} ({awayTeam?.short_name})</option>
                     </select>
                   </div>
                   <div className="w-20">
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Min</label>
-                    <Input type="number" placeholder="45" value={yellowForm.minute} onChange={e => setYellowForm({...yellowForm, minute: e.target.value})} className="h-9 bg-black/40" />
+                    <label htmlFor="yc-min" className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Min *</label>
+                    <Input id="yc-min" type="number" min="1" max="130" placeholder="Min" value={yellowForm.minute} onChange={e => setYellowForm({...yellowForm, minute: e.target.value})} className="h-9 bg-black/40" />
                   </div>
                   <Button 
                     onClick={() => addEvent("yellow_cards", yellowForm, setYellowForm, homeTeam?.name)} 
@@ -381,11 +430,11 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                     <div className="flex items-center gap-3">
                       <span className="text-slate-400 w-8">{y.minute ? `${y.minute}'` : '-'}</span>
                       <span className="font-bold text-white">{y.player_name}</span>
-                      <span className="text-slate-500 text-xs">({y.team_name})</span>
+                      <span className="text-slate-400 text-xs">({y.team_name})</span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => startEditEvent("yellow_cards", y, setYellowForm)} className="h-6 w-6 text-slate-500 hover:text-blue-400">✏️</Button>
-                      <Button variant="ghost" size="icon" onClick={() => removeEvent("yellow_cards", y.id)} className="h-6 w-6 text-slate-500 hover:text-red-400"><Trash2 className="w-3 h-3" /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Edit yellow card" title="Edit yellow card" onClick={() => startEditEvent("yellow_cards", y, setYellowForm)} className="h-7 w-7 text-slate-400 hover:text-blue-400"><Edit2 className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Delete yellow card" title="Delete yellow card" onClick={() => removeEvent("yellow_cards", y.id)} className="h-7 w-7 text-slate-400 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </div>
                 ))}
@@ -395,28 +444,30 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
               <section className="space-y-4">
                 <h3 className="font-bold text-red-500 text-lg border-b border-white/5 pb-2">Red Cards</h3>
                 <div className="flex flex-wrap gap-3 items-end bg-black/20 p-4 rounded-lg border border-white/5">
-                  <div className="flex-1 min-w-[150px]">
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Player</label>
+                  <div className="flex-1 min-w-[160px]">
+                    <label htmlFor="rc-player" className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Player</label>
                     <PlayerAutocomplete 
-                      placeholder="Type player name..."
+                      id="rc-player"
+                      placeholder="Select or type player..."
                       value={redForm.player_name}
                       onChange={val => setRedForm({...redForm, player_name: val})}
                       onSelectTeam={team => setRedForm(prev => ({...prev, team_name: team}))}
                       teamPlayers={teamPlayers}
+                      selectedTeamName={redForm.team_name}
                       homeTeam={homeTeam}
                       awayTeam={awayTeam}
                     />
                   </div>
-                  <div className="w-32">
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Team</label>
-                    <select className="w-full h-9 rounded-md border border-white/10 bg-black/40 px-2 text-sm text-white" value={redForm.team_name} onChange={e => setRedForm({...redForm, team_name: e.target.value})}>
-                      <option value={homeTeam?.name}>{homeTeam?.short_name}</option>
-                      <option value={awayTeam?.name}>{awayTeam?.short_name}</option>
+                  <div className="w-44">
+                    <label htmlFor="rc-team" className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Team</label>
+                    <select id="rc-team" className="w-full h-9 rounded-md border border-white/10 bg-black/40 px-2 text-sm text-white" value={redForm.team_name} onChange={e => setRedForm({...redForm, team_name: e.target.value})}>
+                      <option value={homeTeam?.name}>{homeTeam?.name} ({homeTeam?.short_name})</option>
+                      <option value={awayTeam?.name}>{awayTeam?.name} ({awayTeam?.short_name})</option>
                     </select>
                   </div>
                   <div className="w-20">
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Min</label>
-                    <Input type="number" placeholder="45" value={redForm.minute} onChange={e => setRedForm({...redForm, minute: e.target.value})} className="h-9 bg-black/40" />
+                    <label htmlFor="rc-min" className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Min *</label>
+                    <Input id="rc-min" type="number" min="1" max="130" placeholder="Min" value={redForm.minute} onChange={e => setRedForm({...redForm, minute: e.target.value})} className="h-9 bg-black/40" />
                   </div>
                   <Button 
                     onClick={() => addEvent("red_cards", redForm, setRedForm, homeTeam?.name)} 
@@ -434,43 +485,45 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                     <div className="flex items-center gap-3">
                       <span className="text-slate-400 w-8">{r.minute ? `${r.minute}'` : '-'}</span>
                       <span className="font-bold text-white">{r.player_name}</span>
-                      <span className="text-slate-500 text-xs">({r.team_name})</span>
+                      <span className="text-slate-400 text-xs">({r.team_name})</span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => startEditEvent("red_cards", r, setRedForm)} className="h-6 w-6 text-slate-500 hover:text-blue-400">✏️</Button>
-                      <Button variant="ghost" size="icon" onClick={() => removeEvent("red_cards", r.id)} className="h-6 w-6 text-slate-500 hover:text-red-400"><Trash2 className="w-3 h-3" /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Edit red card" title="Edit red card" onClick={() => startEditEvent("red_cards", r, setRedForm)} className="h-7 w-7 text-slate-400 hover:text-blue-400"><Edit2 className="w-3.5 h-3.5" /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Delete red card" title="Delete red card" onClick={() => removeEvent("red_cards", r.id)} className="h-7 w-7 text-slate-400 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </div>
                 ))}
               </section>
 
-              {/* PENALTY SHOOTOUT (ONLY FOR FINALS IF SCORE IS TIED, OR IF ALREADY HAS PENALTIES) */}
+              {/* PENALTY SHOOTOUT */}
               {(stage === 'final' || info.goals.some(g => g.is_penalty_shootout)) && (
                 <section className="space-y-4">
                   <h3 className="font-bold text-orange-400 text-lg border-b border-white/5 pb-2">Penalty Shootout</h3>
                   <div className="flex flex-wrap gap-3 items-end bg-black/20 p-4 rounded-lg border border-white/5">
-                    <div className="flex-1 min-w-[150px]">
-                      <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Player</label>
+                    <div className="flex-1 min-w-[160px]">
+                      <label htmlFor="ps-player" className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Player</label>
                       <PlayerAutocomplete 
-                        placeholder="Type player name..."
+                        id="ps-player"
+                        placeholder="Select or type player..."
                         value={penaltyShootoutForm.player_name}
                         onChange={val => setPenaltyShootoutForm({...penaltyShootoutForm, player_name: val})}
                         onSelectTeam={team => setPenaltyShootoutForm(prev => ({...prev, team_name: team}))}
                         teamPlayers={teamPlayers}
+                        selectedTeamName={penaltyShootoutForm.team_name}
                         homeTeam={homeTeam}
                         awayTeam={awayTeam}
                       />
                     </div>
-                    <div className="w-32">
-                      <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Team</label>
-                      <select className="w-full h-9 rounded-md border border-white/10 bg-black/40 px-2 text-sm text-white" value={penaltyShootoutForm.team_name} onChange={e => setPenaltyShootoutForm({...penaltyShootoutForm, team_name: e.target.value})}>
-                        <option value={homeTeam?.name}>{homeTeam?.short_name}</option>
-                        <option value={awayTeam?.name}>{awayTeam?.short_name}</option>
+                    <div className="w-44">
+                      <label htmlFor="ps-team" className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Team</label>
+                      <select id="ps-team" className="w-full h-9 rounded-md border border-white/10 bg-black/40 px-2 text-sm text-white" value={penaltyShootoutForm.team_name} onChange={e => setPenaltyShootoutForm({...penaltyShootoutForm, team_name: e.target.value})}>
+                        <option value={homeTeam?.name}>{homeTeam?.name} ({homeTeam?.short_name})</option>
+                        <option value={awayTeam?.name}>{awayTeam?.name} ({awayTeam?.short_name})</option>
                       </select>
                     </div>
-                    <div className="w-24">
-                      <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Result</label>
-                      <select className="w-full h-9 rounded-md border border-white/10 bg-black/40 px-2 text-sm text-white" value={penaltyShootoutForm.shootout_result} onChange={e => setPenaltyShootoutForm({...penaltyShootoutForm, shootout_result: e.target.value})}>
+                    <div className="w-28">
+                      <label htmlFor="ps-res" className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Result</label>
+                      <select id="ps-res" className="w-full h-9 rounded-md border border-white/10 bg-black/40 px-2 text-sm text-white" value={penaltyShootoutForm.shootout_result} onChange={e => setPenaltyShootoutForm({...penaltyShootoutForm, shootout_result: e.target.value})}>
                         <option value="scored">Scored</option>
                         <option value="missed">Missed</option>
                       </select>
@@ -491,11 +544,11 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
                       <div className="flex items-center gap-3">
                         <span className="text-slate-400 w-8">{g.shootout_result === 'scored' ? '⚽' : '❌'}</span>
                         <span className={`font-bold ${g.shootout_result === 'missed' ? 'line-through text-slate-500' : 'text-white'}`}>{g.player_name}</span>
-                        <span className="text-slate-500 text-xs">({g.team_name})</span>
+                        <span className="text-slate-400 text-xs">({g.team_name})</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => startEditEvent("penalty_shootout", g, setPenaltyShootoutForm)} className="h-6 w-6 text-slate-500 hover:text-blue-400">✏️</Button>
-                        <Button variant="ghost" size="icon" onClick={() => removeEvent("goals", g.id)} className="h-6 w-6 text-slate-500 hover:text-red-400"><Trash2 className="w-3 h-3" /></Button>
+                        <Button variant="ghost" size="icon" aria-label="Edit penalty kick" title="Edit penalty kick" onClick={() => startEditEvent("penalty_shootout", g, setPenaltyShootoutForm)} className="h-7 w-7 text-slate-400 hover:text-blue-400"><Edit2 className="w-3.5 h-3.5" /></Button>
+                        <Button variant="ghost" size="icon" aria-label="Delete penalty kick" title="Delete penalty kick" onClick={() => removeEvent("goals", g.id)} className="h-7 w-7 text-slate-400 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></Button>
                       </div>
                     </div>
                   ))}
@@ -508,8 +561,8 @@ export default function AdminMatchInfoModal({ isOpen, onClose, matchId, homeTeam
         {/* Footer */}
         <div className="p-5 border-t border-white/10 bg-black/40 flex justify-end shrink-0 gap-3">
           <Button variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={handleSave} disabled={saving} className="bg-primary text-primary-foreground">
-            {saving ? "Saving..." : "Save Match Info"}
+          <Button onClick={handleSave} disabled={loading || saving} className="bg-primary text-primary-foreground">
+            {saving ? "Saving..." : loading ? "Loading..." : "Save Match Info"}
           </Button>
         </div>
       </div>

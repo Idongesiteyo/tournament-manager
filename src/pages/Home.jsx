@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Trophy, Clock, ChevronRight } from "lucide-react";
+import { Trophy, Clock, ChevronRight, Calendar } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { computeStandings, isSeasonComplete, getRecentForm, sortMatches } from "../lib/logic";
 import { useStandingsConfig } from "../lib/useStandingsConfig";
@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { cn } from "../lib/utils";
 import PublicMatchDetailModal from "../components/ui/PublicMatchDetailModal";
 import { MatchTimer } from "../components/ui/MatchTimer";
+import PageLoader from "../components/ui/PageLoader";
 
 export default function Home() {
   const { tournamentId } = useParams();
@@ -49,7 +50,7 @@ export default function Home() {
     };
   }, [tournamentId]);
 
-  if (loading) return <div className="p-8 text-center text-muted-foreground">Loading tournament...</div>;
+  if (loading) return <PageLoader label="Loading Tournament" />;
   if (!settings) return <div className="p-8 text-center text-destructive font-bold">Tournament not found</div>;
 
   const standings = computeStandings(teams, matches, standingsConfig);
@@ -58,14 +59,21 @@ export default function Home() {
   const championId = settings?.champion_team_id;
   const championTeam = championId ? teams.find(t => t.id === championId) : null;
 
+  const regularMatches = matches.filter(m => m.stage === "regular");
+  const hasPlayedAnyMatch = regularMatches.some(m => m.status === "completed");
+
+  const earliestScheduledDate = regularMatches
+    .filter(m => m.match_date)
+    .map(m => new Date(m.match_date))
+    .sort((a, b) => a - b)[0];
+
   const formStyle = { 
     W: "bg-[#10b981] text-white", 
     D: "bg-[#f59e0b] text-white", 
     L: "bg-[#ef4444] text-white" 
   };
 
-  const filteredMatches = matches
-    .filter(m => m.stage === "regular")
+  const filteredMatches = regularMatches
     .filter((m) => {
       if (fixturesFilter === "results") return m.status === "completed";
       if (fixturesFilter === "upcoming") return m.status === "scheduled";
@@ -78,6 +86,13 @@ export default function Home() {
     acc[m.matchday].push(m);
     return acc;
   }, {});
+
+  const formatKickoff = (isoStr) => {
+    const d = new Date(isoStr);
+    const datePart = d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+    const timePart = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+    return `${datePart}, ${timePart} WAT`;
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -93,7 +108,7 @@ export default function Home() {
           </div>
           <div className="z-10">
             <h2 className="text-primary font-black text-sm uppercase tracking-widest mb-1 flex items-center gap-2">
-              <Trophy className="w-4 h-4" /> LEAGUE CHAMPIONS
+              <Trophy className="w-4 h-4" /> TOURNAMENT CHAMPIONS
             </h2>
             <p className="text-3xl font-black text-white">{championTeam.name}</p>
           </div>
@@ -105,36 +120,45 @@ export default function Home() {
       )}
 
       <Card className="bg-[#0f1423] border-white/5 shadow-2xl overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between pb-4">
-          <CardTitle className="flex items-center gap-2 text-white">
-            <span className="w-1.5 h-6 bg-primary rounded-full inline-block"></span>
-            League Standings
-          </CardTitle>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4">
+          <div className="flex items-center gap-3">
+            <CardTitle className="flex items-center gap-2 text-white">
+              <span className="w-1.5 h-6 bg-primary rounded-full inline-block"></span>
+              Standings
+            </CardTitle>
+            {!hasPlayedAnyMatch && earliestScheduledDate && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-full">
+                <Calendar className="w-3.5 h-3.5" />
+                Season starts {earliestScheduledDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-1 text-xs text-slate-400 sm:hidden animate-pulse">
             <ChevronRight className="w-4 h-4" /> Swipe for more
           </div>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <Table className="w-full min-w-[700px]">
+            <Table className="w-full min-w-[720px]">
               <TableHeader className="bg-black/20">
                 <TableRow className="border-white/5 hover:bg-transparent">
                   <TableHead className="w-12 text-center text-slate-400 font-bold sticky left-0 bg-[#0f1423] z-20 px-1 sm:px-4">#</TableHead>
-                  <TableHead className="text-slate-400 font-bold sticky left-12 bg-[#0f1423] z-20 shadow-[4px_0_12px_rgba(0,0,0,0.5)] w-[140px] sm:w-[200px] px-2 sm:px-4">TEAM</TableHead>
-                  <TableHead className="text-center text-slate-400 font-bold w-12">W</TableHead>
-                  <TableHead className="text-center text-slate-400 font-bold w-12">D</TableHead>
-                  <TableHead className="text-center text-slate-400 font-bold w-12">L</TableHead>
-                  <TableHead className="text-center text-slate-400 font-bold w-12 hidden md:table-cell">GF</TableHead>
-                  <TableHead className="text-center text-slate-400 font-bold w-12 hidden md:table-cell">GA</TableHead>
-                  <TableHead className="text-center text-slate-400 font-bold w-12">GD</TableHead>
+                  <TableHead className="text-slate-400 font-bold sticky left-12 bg-[#0f1423] z-20 shadow-[4px_0_12px_rgba(0,0,0,0.5)] w-[150px] sm:w-[210px] px-2 sm:px-4">TEAM</TableHead>
+                  <TableHead className="text-center text-slate-300 font-bold w-12" title="Matches Played">P</TableHead>
+                  <TableHead className="text-center text-slate-400 font-bold w-12" title="Wins">W</TableHead>
+                  <TableHead className="text-center text-slate-400 font-bold w-12" title="Draws">D</TableHead>
+                  <TableHead className="text-center text-slate-400 font-bold w-12" title="Losses">L</TableHead>
+                  <TableHead className="text-center text-slate-400 font-bold w-12 hidden md:table-cell" title="Goals For">GF</TableHead>
+                  <TableHead className="text-center text-slate-400 font-bold w-12 hidden md:table-cell" title="Goals Against">GA</TableHead>
+                  <TableHead className="text-center text-slate-400 font-bold w-12" title="Goal Difference">GD</TableHead>
                   <TableHead className="text-center text-slate-400 font-bold w-32">FORM</TableHead>
-                  <TableHead className="text-center font-black text-white w-16">PTS</TableHead>
+                  <TableHead className="text-center font-black text-white w-16" title="Points">PTS</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {standings.map((row, idx) => {
-                  const isPlayoff = !isLeagueOnly && idx < 2;
-                  const isHighlightedRank = isLeagueOnly ? idx === 0 : idx < 2;
+                  const isPlayoff = hasPlayedAnyMatch && !isLeagueOnly && idx < 2;
+                  const isHighlightedRank = hasPlayedAnyMatch && (isLeagueOnly ? idx === 0 : idx < 2);
                   const isChampion = championId === row.team.id;
                   const form = getRecentForm(row.team.id, matches);
 
@@ -142,7 +166,7 @@ export default function Home() {
                     <TableRow 
                       key={row.team.id}
                       className={cn(
-                        "border-white/5 transition-colors",
+                        "border-white/5 transition-colors group",
                         isChampion ? "bg-primary/10 hover:bg-primary/20" : "hover:bg-white/[0.02]"
                       )}
                     >
@@ -153,7 +177,7 @@ export default function Home() {
                           <span className="text-xs sm:text-sm">{idx + 1}</span>
                         )}
                       </TableCell>
-                      <TableCell className="sticky left-12 bg-[#0f1423] group-hover:bg-[#1a2035] transition-colors z-10 shadow-[4px_0_12px_rgba(0,0,0,0.5)] w-[140px] sm:w-[200px] px-2 sm:px-4">
+                      <TableCell className="sticky left-12 bg-[#0f1423] group-hover:bg-[#1a2035] transition-colors z-10 shadow-[4px_0_12px_rgba(0,0,0,0.5)] w-[150px] sm:w-[210px] px-2 sm:px-4">
                         <Link to={`/t/${tournamentId}/team/${row.team.id}`} className="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-opacity">
                           <div className="shrink-0 scale-75 sm:scale-100 origin-left -ml-1 sm:ml-0">
                             <TeamColorBadge team={row.team} />
@@ -165,10 +189,10 @@ export default function Home() {
                             </span>
                             {isPlayoff && !championId && (
                               <span className="text-[9px] sm:text-[10px] text-primary font-bold">
-                                ● Playoff
+                                ● Playoff Qualifier
                               </span>
                             )}
-                            {isLeagueOnly && idx === 0 && !championId && (
+                            {hasPlayedAnyMatch && isLeagueOnly && idx === 0 && !championId && (
                               <span className="text-[9px] sm:text-[10px] text-primary font-bold">
                                 ● League Leader
                               </span>
@@ -176,6 +200,7 @@ export default function Home() {
                           </div>
                         </Link>
                       </TableCell>
+                      <TableCell className="text-center font-semibold text-slate-300">{row.mp}</TableCell>
                       <TableCell className="text-center font-medium text-emerald-400">{row.w}</TableCell>
                       <TableCell className="text-center font-medium text-amber-400">{row.d}</TableCell>
                       <TableCell className="text-center font-medium text-red-400">{row.l}</TableCell>
@@ -186,11 +211,19 @@ export default function Home() {
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-1">
-                          {form.map((result, i) => (
-                            <span key={i} className={`w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center ${formStyle[result]}`}>
-                              {result}
-                            </span>
-                          ))}
+                          {form.length > 0 ? (
+                            form.map((result, i) => (
+                              <span key={i} className={`w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center ${formStyle[result]}`}>
+                                {result}
+                              </span>
+                            ))
+                          ) : (
+                            [0, 1, 2, 3, 4].map((i) => (
+                              <span key={i} className="w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center bg-white/5 text-slate-500">
+                                –
+                              </span>
+                            ))
+                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-center font-black text-primary text-lg">{row.pts}</TableCell>
@@ -200,17 +233,25 @@ export default function Home() {
               </TableBody>
             </Table>
           </div>
-          <div className="p-4 border-t border-white/5 bg-black/10">
+          <div className="p-4 border-t border-white/5 bg-black/10 flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs text-primary font-bold flex items-center gap-2">
-              {isLeagueOnly ? "● 1st place wins the League Championship" : "● Top 2 qualify for Finals"}
+              {isLeagueOnly ? "● 1st place wins the Tournament Championship" : "● Top 2 qualify for Playoff Final"}
             </span>
+            {!hasPlayedAnyMatch && (
+              <span className="text-xs text-slate-400">
+                Teams sorted alphabetically until the first match is completed
+              </span>
+            )}
           </div>
         </CardContent>
       </Card>
 
       <Card className="bg-[#0f1423] border-white/5 shadow-2xl">
         <CardHeader className="flex flex-row items-center justify-between border-b border-white/5 pb-4">
-          <CardTitle className="text-white">Fixtures</CardTitle>
+          <div>
+            <CardTitle className="text-white">Fixtures</CardTitle>
+            <p className="text-xs text-slate-400 mt-0.5">All kick-off times shown in West Africa Time (WAT)</p>
+          </div>
           <div className="flex items-center gap-1 bg-black/40 p-1 rounded-lg border border-white/5">
             {["all", "results", "upcoming"].map((filter) => (
               <button
@@ -253,18 +294,18 @@ export default function Home() {
                         {/* Match Date Header */}
                         {m.match_date && (
                           <div className="text-[10px] text-center font-bold text-slate-400 uppercase tracking-widest mb-3 pb-2 border-b border-white/5">
-                            {new Date(m.match_date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {formatKickoff(m.match_date)}
                           </div>
                         )}
                         {!m.match_date && m.status !== "completed" && (
                            <div className="text-[10px] text-center font-bold text-slate-500 uppercase tracking-widest mb-3 pb-2 border-b border-white/5">
-                             TBD
+                             Time TBD (WAT)
                            </div>
                         )}
                         
                         <div className="flex items-center justify-between">
                           <div className="flex flex-col items-center gap-2 flex-1">
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center font-black text-xs shadow-lg" style={{ backgroundColor: homeTeam.color, color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center font-black text-xs shadow-lg border border-white/10" style={{ backgroundColor: homeTeam.color, color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
                               {homeTeam.short_name}
                             </div>
                             <span className="font-bold text-sm text-center text-white">{homeTeam.name}</span>
@@ -279,14 +320,14 @@ export default function Home() {
                                 </div>
                               </div>
                             ) : (
-                              <span className="flex items-center justify-center w-8 h-8 text-slate-500 text-xs font-bold bg-black/40 rounded-full border border-white/5">
+                              <span className="flex items-center justify-center w-8 h-8 text-slate-400 text-xs font-bold bg-black/40 rounded-full border border-white/5">
                                 VS
                               </span>
                             )}
                           </div>
 
                           <div className="flex flex-col items-center gap-2 flex-1">
-                            <div className="w-10 h-10 rounded-full flex items-center justify-center font-black text-xs shadow-lg" style={{ backgroundColor: awayTeam.color, color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center font-black text-xs shadow-lg border border-white/10" style={{ backgroundColor: awayTeam.color, color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
                               {awayTeam.short_name}
                             </div>
                             <span className="font-bold text-sm text-center text-white">{awayTeam.name}</span>

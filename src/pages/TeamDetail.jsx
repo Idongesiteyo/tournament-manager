@@ -9,6 +9,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 
 import FormationPitch from "../components/ui/FormationPitch";
+import PageLoader from "../components/ui/PageLoader";
 
 export default function TeamDetail() {
   const { tournamentId, teamId } = useParams();
@@ -57,7 +58,7 @@ export default function TeamDetail() {
   const standings = useMemo(() => computeStandings(teams, matches, standingsConfig), [teams, matches, standingsConfig]);
   const teamStats = standings.find(s => s.team.id === teamId);
   
-  if (loading) return <div className="p-8 text-center text-muted-foreground">Loading team data...</div>;
+  if (loading) return <PageLoader label="Loading Squad" />;
   if (!team) return <div className="p-8 text-center text-destructive font-bold">Team not found</div>;
 
   const teamMatches = matches
