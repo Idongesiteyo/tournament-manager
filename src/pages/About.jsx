@@ -1,11 +1,28 @@
-import { Code2, ExternalLink, Mail } from "lucide-react";
+import { Code2, ExternalLink, Mail, ArrowLeft } from "lucide-react";
+import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "../components/ui/card";
+import { Button } from "../components/ui/button";
 
 export default function About() {
+  const { tournamentId } = useParams();
+  const navigate = useNavigate();
   return (
     <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-500 pb-12">
       {/* Header */}
-      <div className="text-center space-y-4">
+      <div className="relative text-center space-y-4">
+        <div className="flex items-center justify-start sm:absolute sm:left-0 sm:top-1 mb-2 sm:mb-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Back to Standings"
+            title="Back to Standings"
+            onClick={() => navigate(tournamentId ? `/t/${tournamentId}` : "/dashboard")}
+            className="hover:bg-white/5 shrink-0"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+        </div>
         <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight">About the Developer</h1>
         <p className="text-lg text-slate-400 font-medium max-w-2xl mx-auto">
           Building tools to make tournament management easier, faster, and more exciting.

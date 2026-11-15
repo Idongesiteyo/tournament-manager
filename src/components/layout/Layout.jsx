@@ -142,30 +142,24 @@ export default function Layout() {
   return (
     <div className="min-h-screen flex flex-col bg-[#090b14] text-foreground font-sans selection:bg-primary/30">
       <nav className="border-b border-white/5 bg-[#090b14]/80 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link to={isDashboard ? "/dashboard" : tournamentId ? `/t/${tournamentId}` : "/auth"} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 h-16 flex items-center justify-between gap-2">
+          <Link to={isDashboard ? "/dashboard" : tournamentId ? `/t/${tournamentId}` : "/auth"} className="flex items-center gap-2.5 sm:gap-3 hover:opacity-80 transition-opacity min-w-0">
             {tournamentImage ? (
-              <img src={tournamentImage} alt="Tournament Logo" className="w-8 h-8 rounded-lg object-cover shadow-lg shadow-primary/20" />
+              <img src={tournamentImage} alt="Tournament Logo" className="w-8 h-8 rounded-lg object-cover shadow-lg shadow-primary/20 shrink-0" />
             ) : (
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg shadow-primary/20">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg shadow-primary/20 shrink-0">
                 <Trophy className="w-5 h-5 text-primary-foreground" />
               </div>
             )}
             <span 
-              className={`font-black text-lg md:text-xl tracking-tight text-white transition-all ${!isTitleExpanded ? 'truncate max-w-[140px] sm:max-w-xs md:max-w-md' : 'whitespace-normal'}`}
+              className="font-black text-base sm:text-lg md:text-xl tracking-tight text-white truncate max-w-[130px] sm:max-w-xs md:max-w-md"
               title={tournamentName}
-              onClick={(e) => {
-                if (window.innerWidth < 640) {
-                  e.preventDefault();
-                  setIsTitleExpanded(!isTitleExpanded);
-                }
-              }}
             >
               {loading ? "Football Tournament Manager" : tournamentName}
             </span>
           </Link>
           
-          <div className="flex items-center gap-1 sm:gap-3">
+          <div className="flex items-center gap-0.5 sm:gap-2 shrink-0">
             {tournamentId || isDashboard ? navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.path;
@@ -173,7 +167,8 @@ export default function Layout() {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-bold transition-all ${
+                  title={item.label}
+                  className={`flex items-center gap-2 px-2.5 sm:px-3 py-2 rounded-md text-sm font-bold transition-all ${
                     isActive 
                       ? "bg-primary/10 text-primary" 
                       : "text-slate-400 hover:bg-white/5 hover:text-white"
@@ -189,7 +184,7 @@ export default function Layout() {
             {!isDashboard && tournamentId && isApprovedUser && (
               <Link 
                 to={`/dashboard/${tournamentId}`}
-                className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-bold text-slate-400 hover:bg-white/5 hover:text-white transition-all ml-1 border border-white/10"
+                className="flex items-center gap-2 px-2.5 sm:px-3 py-2 rounded-md text-sm font-bold text-slate-400 hover:bg-white/5 hover:text-white transition-all ml-0.5 sm:ml-1 border border-white/10"
                 title="Manage this tournament"
               >
                 <Settings className="w-4 h-4" />

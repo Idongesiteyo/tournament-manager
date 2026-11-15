@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
+import { Button } from "../components/ui/button";
 import FormationPitch from "../components/ui/FormationPitch";
 import PageLoader from "../components/ui/PageLoader";
 
 export default function Teams() {
   const { tournamentId } = useParams();
+  const navigate = useNavigate();
   const [teams, setTeams] = useState([]);
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,9 +43,22 @@ export default function Teams() {
 
   return (
     <div className="space-y-8 animate-in fade-in">
-      <div>
-        <h1 className="text-3xl font-black mb-2">Teams</h1>
-        <p className="text-slate-400">All competing teams and their tactical formations</p>
+      <div className="flex items-center gap-3 sm:gap-4">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="Back to Standings"
+          title="Back to Standings"
+          onClick={() => navigate(`/t/${tournamentId}`)}
+          className="hover:bg-white/5 shrink-0"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-black mb-1">Teams</h1>
+          <p className="text-sm text-slate-400">All competing teams and their tactical formations</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

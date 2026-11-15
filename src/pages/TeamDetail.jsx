@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
-import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, UserPlus, Trash2, Shield, Target, CalendarDays, UserRound, Activity } from "lucide-react";
+import { useParams, useNavigate } from "react-router-dom";
+import { ArrowLeft, Shield, UserRound, Activity } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { computeStandings, getRecentForm, sortMatches } from "../lib/logic";
 import { useStandingsConfig } from "../lib/useStandingsConfig";
@@ -13,6 +13,7 @@ import PageLoader from "../components/ui/PageLoader";
 
 export default function TeamDetail() {
   const { tournamentId, teamId } = useParams();
+  const navigate = useNavigate();
   
   const [team, setTeam] = useState(null);
   const [matches, setMatches] = useState([]);
@@ -70,7 +71,7 @@ export default function TeamDetail() {
 
   return (
     <div className="space-y-8 animate-in fade-in">
-      <div className="relative w-full aspect-[16/7] rounded-2xl overflow-hidden border border-white/5 mb-8 flex flex-col justify-end shadow-2xl">
+      <div className="relative w-full min-h-[210px] sm:min-h-[240px] sm:aspect-[16/7] rounded-2xl overflow-hidden border border-white/5 mb-8 flex flex-col justify-end shadow-2xl pt-16">
         {team.team_picture_url ? (
           <img 
             src={team.team_picture_url} 
@@ -82,22 +83,36 @@ export default function TeamDetail() {
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-[#09090b] via-[#09090b]/60 to-transparent" />
         
-        <div className="absolute top-4 left-4 z-10">
-          <Button variant="outline" size="icon" asChild className="bg-black/40 border-white/10 hover:bg-white/20 backdrop-blur-md">
-            <Link to={`/t/${tournamentId}`}><ArrowLeft className="w-5 h-5 text-white" /></Link>
+        <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-30">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label="Go back"
+            title="Go back"
+            onClick={() => {
+              if (window.history.state && window.history.state.idx > 0) {
+                navigate(-1);
+              } else {
+                navigate(`/t/${tournamentId}`);
+              }
+            }}
+            className="bg-black/50 border-white/15 hover:bg-white/20 backdrop-blur-md text-white"
+          >
+            <ArrowLeft className="w-5 h-5 text-white" />
           </Button>
         </div>
 
-        <div className="relative z-10 p-6 md:p-8 flex items-end gap-5">
+        <div className="relative z-10 p-4 sm:p-6 md:p-8 flex items-end gap-4 sm:gap-5">
           <div 
-            className="w-16 h-16 md:w-20 md:h-20 shrink-0 rounded-2xl shadow-2xl border-2 border-white/20 flex items-center justify-center font-black text-2xl md:text-3xl"
+            className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 shrink-0 rounded-2xl shadow-2xl border-2 border-white/20 flex items-center justify-center font-black text-xl sm:text-2xl md:text-3xl"
             style={{ backgroundColor: team.color || '#475569', color: '#fff', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}
           >
             {team.short_name?.slice(0, 3).toUpperCase()}
           </div>
-          <div>
-            <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight">{team.name}</h1>
-            <div className="flex flex-wrap items-center gap-4 mt-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl md:text-5xl font-black text-white tracking-tight truncate">{team.name}</h1>
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-2 sm:mt-3">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-slate-300">Form:</span>
                 <div className="flex gap-1">

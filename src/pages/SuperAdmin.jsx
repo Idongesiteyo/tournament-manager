@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Shield, ShieldAlert, CheckCircle2, Clock, Users, Trophy, Activity, Trash2, Briefcase, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Shield, ShieldAlert, CheckCircle2, Clock, Users, Trophy, Activity, Trash2, Briefcase, Search, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import PageLoader from "../components/ui/PageLoader";
@@ -210,11 +210,24 @@ export default function SuperAdmin() {
   return (
     <div className="space-y-8 animate-in fade-in pb-20">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-black text-primary flex items-center gap-3">
-            <ShieldAlert className="w-8 h-8" /> {isSuperAdmin ? "Super Admin Panel" : "Admin Panel"}
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">Manage user roles, tournament access assignments, and audit trails</p>
+        <div className="flex items-center gap-3 sm:gap-4">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Back to Tournaments"
+            title="Back to Tournaments"
+            onClick={() => navigate("/dashboard")}
+            className="hover:bg-white/5 shrink-0"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-black text-primary flex items-center gap-2 sm:gap-3">
+              <ShieldAlert className="w-6 h-6 sm:w-8 sm:h-8 shrink-0" /> {isSuperAdmin ? "Super Admin Panel" : "Admin Panel"}
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-400 mt-1">Manage user roles, tournament access assignments, and audit trails</p>
+          </div>
         </div>
       </div>
 

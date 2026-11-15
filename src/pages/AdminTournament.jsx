@@ -68,6 +68,7 @@ export default function AdminTournament() {
   const [collapsedMatchdays, setCollapsedMatchdays] = useState({});
   const [openMatchMenuId, setOpenMatchMenuId] = useState(null);
   const [matchToReset, setMatchToReset] = useState(null);
+  const [pendingStatusChange, setPendingStatusChange] = useState(null);
 
   // Destructive & advanced state
   const [showDangerZone, setShowDangerZone] = useState(false);
@@ -94,6 +95,14 @@ export default function AdminTournament() {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isSettingsDirty]);
+
+  // Close match overflow menu when clicking outside
+  useEffect(() => {
+    if (!openMatchMenuId) return;
+    const handleClickOutside = () => setOpenMatchMenuId(null);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openMatchMenuId]);
 
   // Restore scroll position when returning from public page or team page
   useEffect(() => {
@@ -1034,11 +1043,13 @@ export default function AdminTournament() {
               const groupTitle = groupKey === "FINAL" ? "Playoff Final" : `Matchday ${groupKey.replace("MD_", "")}`;
 
               return (
-                <div key={groupKey} className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.01]">
+                <div key={groupKey} className="rounded-xl border border-white/10 bg-white/[0.01]">
                   <button
                     type="button"
                     onClick={() => setCollapsedMatchdays(prev => ({ ...prev, [groupKey]: !prev[groupKey] }))}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-white/[0.03] hover:bg-white/[0.05] transition-colors text-left"
+                    className={`w-full flex items-center justify-between px-4 py-3 bg-white/[0.03] hover:bg-white/[0.05] transition-colors text-left rounded-t-xl ${
+                      isCollapsed ? "rounded-b-xl" : ""
+                    }`}
                   >
                     <div className="flex items-center gap-2">
                       {isCollapsed ? <ChevronRight className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
@@ -1190,31 +1201,127 @@ export default function AdminTournament() {
 
                             {/* Streamlined Actions */}
                             {!isEditing && (
-                              <div className="flex items-center justify-end gap-2 shrink-0">
+                              <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
                                 {match.status === 'scheduled' && (
                                   <Button
                                     size="sm"
                                     variant="outline"
                                     className="h-8 text-xs border-primary/40 text-primary hover:bg-primary/10"
-                                    onClick={() => updateMatchStatus(match.id, 'first_half', { half_duration: halfDurations[match.id] || 45, first_half_start: new Date().toISOString() })}
+                                    onClick={() => {
+                                      const halfMins = halfDurations[match.id] || 45;
+                                      setPendingStatusChange({
+                                        matchId: match.id,
+                                        status: 'first_half',
+                                        getExtraFields: () => ({ half_duration: halfMins, first_half_start: new Date().toISOString() }),
+                                        title: "Start 1st Half?",
+                                        matchLabel: `${home?.name} vs ${away?.name}`,
+                                        description: `Start the live timer for the 1st half (${halfMins} mins per half).`,
+                                        confirmLabel: `Start (${halfMins}m)`,
+                                      });
+                                    }}
                                   >
                                     Start ({halfDurations[match.id] || 45}m)
                                   </Button>
                                 )}
                                 {match.status === 'first_half' && (
                                   <>
-                                    <Button size="sm" variant="outline" className="h-8 text-xs border-amber-500/50 text-amber-400" onClick={() => updateMatchStatus(match.id, 'halftime')}>HT</Button>
-                                    <Button size="sm" variant="outline" className="h-8 text-xs border-emerald-500/50 text-emerald-400" onClick={() => updateMatchStatus(match.id, 'completed', { match_end: new Date().toISOString() })}>End FT</Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-8 text-xs border-amber-500/50 text-amber-400"
+                                      onClick={() =>
+                                        setPendingStatusChange({
+                                          matchId: match.id,
+                                          status: 'halftime',
+                                          getExtraFields: () => ({}),
+                                          title: "Call Half-Time (HT)?",
+                                          matchLabel: `${home?.name} vs ${away?.name}`,
+                                          description: "Pause the match at Half-Time and end the 1st half.",
+                                          confirmLabel: "Call Half-Time",
+                                        })
+                                      }
+                                    >
+                                      HT
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-8 text-xs border-emerald-500/50 text-emerald-400"
+                                      onClick={() =>
+                                        setPendingStatusChange({
+                                          matchId: match.id,
+                                          status: 'completed',
+                                          getExtraFields: () => ({ match_end: new Date().toISOString() }),
+                                          title: "End Match at Full-Time?",
+                                          matchLabel: `${home?.name} vs ${away?.name}`,
+                                          description: `Mark this match as Full-Time (${match.home_score ?? 0} – ${match.away_score ?? 0}) and finalize its result in the standings.`,
+                                          confirmLabel: "End Match (FT)",
+                                        })
+                                      }
+                                    >
+                                      End FT
+                                    </Button>
                                   </>
                                 )}
                                 {match.status === 'halftime' && (
                                   <>
-                                    <Button size="sm" variant="outline" className="h-8 text-xs border-emerald-500/50 text-emerald-400" onClick={() => updateMatchStatus(match.id, 'second_half', { second_half_start: new Date().toISOString() })}>2nd Half</Button>
-                                    <Button size="sm" variant="outline" className="h-8 text-xs border-blue-500/50 text-blue-400" onClick={() => updateMatchStatus(match.id, 'completed', { match_end: new Date().toISOString() })}>End FT</Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-8 text-xs border-emerald-500/50 text-emerald-400"
+                                      onClick={() =>
+                                        setPendingStatusChange({
+                                          matchId: match.id,
+                                          status: 'second_half',
+                                          getExtraFields: () => ({ second_half_start: new Date().toISOString() }),
+                                          title: "Start 2nd Half?",
+                                          matchLabel: `${home?.name} vs ${away?.name}`,
+                                          description: "Kick off the 2nd half and resume the live match timer.",
+                                          confirmLabel: "Start 2nd Half",
+                                        })
+                                      }
+                                    >
+                                      2nd Half
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-8 text-xs border-blue-500/50 text-blue-400"
+                                      onClick={() =>
+                                        setPendingStatusChange({
+                                          matchId: match.id,
+                                          status: 'completed',
+                                          getExtraFields: () => ({ match_end: new Date().toISOString() }),
+                                          title: "End Match at Full-Time?",
+                                          matchLabel: `${home?.name} vs ${away?.name}`,
+                                          description: `Mark this match as Full-Time (${match.home_score ?? 0} – ${match.away_score ?? 0}) and finalize its result in the standings.`,
+                                          confirmLabel: "End Match (FT)",
+                                        })
+                                      }
+                                    >
+                                      End FT
+                                    </Button>
                                   </>
                                 )}
                                 {match.status === 'second_half' && (
-                                  <Button size="sm" variant="outline" className="h-8 text-xs border-emerald-500/50 text-emerald-400" onClick={() => updateMatchStatus(match.id, 'completed', { match_end: new Date().toISOString() })}>End FT</Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 text-xs border-emerald-500/50 text-emerald-400"
+                                    onClick={() =>
+                                      setPendingStatusChange({
+                                        matchId: match.id,
+                                        status: 'completed',
+                                        getExtraFields: () => ({ match_end: new Date().toISOString() }),
+                                        title: "End Match at Full-Time?",
+                                        matchLabel: `${home?.name} vs ${away?.name}`,
+                                        description: `Mark this match as Full-Time (${match.home_score ?? 0} – ${match.away_score ?? 0}) and finalize its result in the standings.`,
+                                        confirmLabel: "End Match (FT)",
+                                      })
+                                    }
+                                  >
+                                    End FT
+                                  </Button>
                                 )}
 
                                 <Button 
@@ -1244,7 +1351,7 @@ export default function AdminTournament() {
                                 </Button>
 
                                 {/* Overflow "⋯" menu for secondary options (half duration, reset) */}
-                                <div className="relative">
+                                <div className="relative" onMouseDown={(e) => e.stopPropagation()}>
                                   <Button
                                     type="button"
                                     size="icon"
@@ -1257,7 +1364,7 @@ export default function AdminTournament() {
                                     <MoreHorizontal className="w-4 h-4" />
                                   </Button>
                                   {openMatchMenuId === match.id && (
-                                    <div className="absolute right-0 mt-1 w-48 rounded-xl bg-[#0f1423] border border-white/15 shadow-2xl p-2 z-30 space-y-2">
+                                    <div className="absolute right-0 top-full mt-1.5 w-48 rounded-xl bg-[#0f1423] border border-white/15 shadow-2xl p-2 z-40 space-y-2 animate-in fade-in zoom-in-95">
                                       {match.status === "scheduled" && (
                                         <div className="px-2 py-1">
                                           <label htmlFor={`half-dur-${match.id}`} className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
@@ -1273,7 +1380,7 @@ export default function AdminTournament() {
                                             }}
                                           >
                                             {[10, 15, 20, 25, 30, 35, 40, 45].map(m => (
-                                              <option key={m} value={m}>{m} mins per half</option>
+                                              <option key={m} value={m} className="bg-[#0f1423] text-white">{m} mins per half</option>
                                             ))}
                                           </select>
                                         </div>
@@ -1389,6 +1496,39 @@ export default function AdminTournament() {
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" className="border-white/10" onClick={() => setTeamToDelete(null)}>Cancel</Button>
               <Button variant="destructive" onClick={confirmDeleteTeam}>Delete Team</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Match Status Change Modal (Start, HT, 2nd Half, End FT) */}
+      {pendingStatusChange && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setPendingStatusChange(null); }}
+        >
+          <div className="bg-[#0f1423] border border-primary/25 rounded-xl p-6 w-full max-w-md shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div>
+              <h3 className="text-lg font-bold text-white">{pendingStatusChange.title}</h3>
+              <p className="text-xs font-semibold text-primary mt-0.5">{pendingStatusChange.matchLabel}</p>
+            </div>
+            <p className="text-sm text-slate-300">
+              {pendingStatusChange.description}
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" className="border-white/10" onClick={() => setPendingStatusChange(null)}>
+                Cancel
+              </Button>
+              <Button
+                className="font-bold"
+                onClick={async () => {
+                  const { matchId, status, getExtraFields } = pendingStatusChange;
+                  setPendingStatusChange(null);
+                  await updateMatchStatus(matchId, status, getExtraFields ? getExtraFields() : {});
+                }}
+              >
+                {pendingStatusChange.confirmLabel}
+              </Button>
             </div>
           </div>
         </div>

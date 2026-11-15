@@ -1,16 +1,18 @@
 import { useEffect, useState, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { computeStandings, getRecentForm } from "../lib/logic";
 import { useStandingsConfig } from "../lib/useStandingsConfig";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
+import { Button } from "../components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from "recharts";
-import { Activity, Target, Shield, TrendingUp, BarChart2 } from "lucide-react";
+import { Activity, Target, Shield, TrendingUp, BarChart2, ArrowLeft } from "lucide-react";
 import { TeamColorBadge } from "../components/shared/TeamColorBadge";
 import PageLoader from "../components/ui/PageLoader";
 
 export default function Stats() {
   const { tournamentId } = useParams();
+  const navigate = useNavigate();
   const [teams, setTeams] = useState([]);
   const [matches, setMatches] = useState([]);
   const [matchInfo, setMatchInfo] = useState([]);
@@ -147,11 +149,24 @@ export default function Stats() {
 
   return (
     <div className="space-y-8 animate-in fade-in pb-20">
-      <div>
-        <h1 className="text-3xl font-black text-primary flex items-center gap-3">
-          <Activity className="w-8 h-8" /> League Statistics
-        </h1>
-        <p className="text-muted-foreground mt-2">Comprehensive data analysis across all teams.</p>
+      <div className="flex items-center gap-3 sm:gap-4">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="Back to Standings"
+          title="Back to Standings"
+          onClick={() => navigate(`/t/${tournamentId}`)}
+          className="hover:bg-white/5 shrink-0"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-black text-primary flex items-center gap-2 sm:gap-3">
+            <Activity className="w-6 h-6 sm:w-8 sm:h-8 shrink-0" /> League Statistics
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">Comprehensive data analysis across all teams.</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
